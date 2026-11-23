@@ -189,14 +189,8 @@
     updateAuthUI(null);
   });
 
-  // stats on load (wait for Supabase client)
-  const waitForClient = () => new Promise((resolve) => {
-    if (window.kismetSupabase) { resolve(); return; }
-    let n = 0;
-    const t = setInterval(() => {
-      if (window.kismetSupabase || n > 100) { clearInterval(t); resolve(); }
-      n++;
-    }, 100);
+  // Load stats only after the authenticated session is ready.
+  window.kismetReady.then(refreshStats).catch(error => {
+    console.warn('Profile stats unavailable until the secure session is ready:', error);
   });
-  waitForClient().then(refreshStats);
 })();
