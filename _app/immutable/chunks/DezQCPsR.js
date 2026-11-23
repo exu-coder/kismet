@@ -1,0 +1,1 @@
+import{r as e}from"./CgNY3oMq.js";var t=()=>`How to talk to strangers online`,n=()=>`Cómo hablar con desconocidos en internet`,r=()=>`Como conversar com estranhos na internet`,i=((i={},a={})=>{let o=a.locale??e();return o===`es`?n(i):o===`pt`?r(i):t(i)});export{i as t};

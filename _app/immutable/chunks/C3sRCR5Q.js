@@ -1,0 +1,1 @@
+import{r as e}from"./CgNY3oMq.js";var t=()=>`Random video chat, explained properly`,n=()=>`Chat aleatorio, explicado como corresponde`,r=()=>`Bate-papo aleatório, explicado direito`,i=((i={},a={})=>{let o=a.locale??e();return o===`es`?n(i):o===`pt`?r(i):t(i)});export{i as t};

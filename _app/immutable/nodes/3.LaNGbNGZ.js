@@ -1,0 +1,1 @@
+import{O as e,V as t,yt as n,z as r}from"../chunks/C04OsEBg.js";import"../chunks/xihTtKlq.js";import"../chunks/DNociw4Q.js";var i=t(`<meta name="robots" content="noindex, nofollow"/>`),a=t(`<h1>404</h1> <p>Not Found</p>`,1);function o(t){var o=a();e(`15h4f4n`,e=>{var t=i();r(e,t)}),n(2),r(t,o)}export{o as component};

@@ -1,0 +1,32 @@
+{
+	"name": "Kismet — meet someone new in seconds",
+	"short_name": "Kismet",
+	"description": "Instant random video chat. One press pairs you with a real person somewhere in the world — free, no account, actively moderated.",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"orientation": "any",
+	"background_color": "#070a14",
+	"theme_color": "#070a14",
+	"categories": ["social", "entertainment"],
+	"icons": [
+		{
+			"src": "/icons/icon-192x192.png",
+			"sizes": "192x192",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/icon-512x512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/icon-maskable-512x512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "maskable"
+		}
+	]
+}

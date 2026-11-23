@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kismet — video chat</title>
+  <meta name="theme-color" content="#070a14" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/redesign/theme.css">
+  <script src="/redesign/pixels.js" defer></script>
+  <script src="/redesign/nav.js" defer></script>
+  <script src="/redesign/supabase.min.js" defer></script>
+  <script src="/redesign/supabase.js" defer></script>
+  <script src="/redesign/videochat.js" defer></script>
+  <style>
+    .vc-container{max-width:900px;margin:0 auto;padding:1rem;display:flex;flex-direction:column;gap:1rem;min-height:calc(100vh - 8rem)}
+    .vc-status{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:var(--color-bg-container,#0c101f);border:1px solid var(--color-border,#232b47);border-radius:8px}
+    .vc-status-text{font-size:.9rem;color:var(--color-text-light,#b6b1c4)}
+    .vc-online{display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--color-text,#efe8d6)}
+    .vc-dot{width:8px;height:8px;border-radius:50%;background:var(--color-success,#4fd68f);animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .vc-videos{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;flex:1;min-height:300px}
+    .vc-video-wrap{position:relative;background:#000;border-radius:8px;overflow:hidden;border:1px solid var(--color-border,#232b47)}
+    .vc-video-wrap video{width:100%;height:100%;object-fit:cover;display:block}
+    .vc-video-label{position:absolute;bottom:.5rem;left:.5rem;padding:.2rem .5rem;background:rgba(0,0,0,.6);color:#fff;font-size:.75rem;border-radius:4px}
+    .vc-controls{display:flex;justify-content:center;gap:.75rem;padding:1rem 0}
+    .vc-btn{padding:.6rem 1.5rem;border:none;border-radius:8px;font:inherit;font-size:.9rem;font-weight:700;cursor:pointer;transition:transform .12s,filter .12s}
+    .vc-btn:active{transform:scale(.95)}
+    .vc-btn.primary{background:var(--gradient-brand,#f59e0b);color:var(--color-on-primary,#0c101f)}
+    .vc-btn.danger{background:var(--color-danger,#f5585f);color:#fff}
+    .vc-btn.ghost{background:var(--color-bg-container,#0c101f);color:var(--color-text,#efe8d6);border:1px solid var(--color-border,#232b47)}
+    .vc-btn:disabled{opacity:.4;cursor:not-allowed}
+    .vc-chat{display:flex;flex-direction:column;gap:.5rem;padding:.75rem;background:var(--color-bg-container,#0c101f);border:1px solid var(--color-border,#232b47);border-radius:8px;max-height:200px}
+    .vc-messages{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:.3rem;min-height:80px;max-height:120px}
+    .vc-msg{padding:.3rem .6rem;border-radius:6px;font-size:.85rem;max-width:80%}
+    .vc-msg.me{align-self:flex-end;background:var(--color-primary,#f59e0b);color:var(--color-on-primary,#0c101f)}
+    .vc-msg.them{align-self:flex-start;background:var(--color-bg-raised,#151b30);color:var(--color-text,#efe8d6)}
+    .vc-compose{display:flex;gap:.4rem}
+    .vc-compose input{flex:1;padding:.4rem .6rem;background:var(--color-bg-raised,#151b30);border:1px solid var(--color-border,#232b47);color:var(--color-text,#efe8d6);border-radius:6px;font:inherit;font-size:.85rem}
+    .vc-reveal{padding:.75rem;background:var(--color-bg-container,#0c101f);border:1px solid var(--color-border,#232b47);border-radius:8px}
+    .vc-reveal h3{margin:0 0 .4rem;font-size:.95rem;color:var(--color-text,#efe8d6)}
+    .vc-reveal p{margin:0 0 .5rem;font-size:.8rem;color:var(--color-text-light,#b6b1c4)}
+    .vc-reveal-btn{padding:.4rem .8rem;background:var(--gradient-brand,#f59e0b);color:var(--color-on-primary,#0c101f);border:none;border-radius:6px;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+    @media (max-width:600px){.vc-videos{grid-template-columns:1fr}.vc-video-wrap{min-height:200px}}
+  </style>
+</head>
+<body>
+  <div class="shell full-bleed">
+    <header>
+      <a class="lockup" href="/">
+        <span class="mark-tube neon-whole"><svg viewBox="0 0 100 100" role="presentation" aria-hidden="true" style="width:1.12em;height:1.12em;"><defs><linearGradient id="mark-warp" gradientUnits="userSpaceOnUse" x1="8" y1="12" x2="92" y2="88"><stop offset="0" style="stop-color: color-mix(in srgb, #f59e0b calc(var(--lit, 1) * 100%), var(--neon-off, #191430))"></stop><stop offset="1" style="stop-color: color-mix(in srgb, #f59e0b calc(var(--lit, 1) * 100%), var(--neon-off, #191430))"></stop></linearGradient></defs><rect x="6" y="17" width="88" height="66" rx="14" fill="url(#mark-warp)"></rect><g fill="none" stroke="#140e22"><circle cx="46" cy="50" r="22" stroke-width="5.5"></circle><circle cx="49" cy="49" r="11.5" stroke-width="4.5"></circle></g><circle cx="51.5" cy="48.25" r="3.75" fill="#140e22"></circle></svg></span>
+        <span class="wordmark neon-sign">Kis<em>met</em></span>
+      </a>
+    </header>
+    <main>
+      <div class="vc-container">
+        <div class="vc-status">
+          <span class="vc-status-text" id="status-text">Ready to match</span>
+          <span class="vc-online"><span class="vc-dot"></span><span id="online-count">0</span> online</span>
+        </div>
+        <div class="vc-videos">
+          <div class="vc-video-wrap">
+            <video id="local-video" autoplay muted playsinline></video>
+            <span class="vc-video-label">You</span>
+          </div>
+          <div class="vc-video-wrap">
+            <video id="remote-video" autoplay playsinline></video>
+            <span class="vc-video-label" id="remote-label">Stranger</span>
+          </div>
+        </div>
+        <div class="vc-controls">
+          <button class="vc-btn primary" id="btn-start">Start</button>
+          <button class="vc-btn danger" id="btn-stop" disabled>Stop</button>
+          <button class="vc-btn ghost" id="btn-next" disabled>Next</button>
+        </div>
+        <div class="vc-reveal" id="reveal-section" style="display:none">
+          <h3>Reveal identity</h3>
+          <p>Let the stranger see your name and send a friend request.</p>
+          <button class="vc-reveal-btn" id="btn-reveal">Reveal identity</button>
+          <span id="reveal-status" style="margin-left:.75rem;font-size:.8rem;color:var(--color-text-light,#b6b1c4)"></span>
+        </div>
+        <div class="vc-chat" id="chat-section" style="display:none">
+          <div class="vc-messages" id="vc-messages"></div>
+          <div class="vc-compose">
+            <input type="text" id="vc-msg-input" placeholder="Type a message..." />
+            <button class="vc-btn primary" id="vc-send" style="padding:.4rem .8rem">Send</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="vc-toast" style="position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);padding:.6rem 1rem;background:var(--color-bg-raised,#151b30);border:1px solid var(--color-border,#232b47);border-radius:8px;color:var(--color-text,#efe8d6);font-size:.85rem;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none"></div>
+</body>
+</html>

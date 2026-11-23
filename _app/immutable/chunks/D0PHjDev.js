@@ -1,0 +1,1 @@
+import{r as e}from"./CgNY3oMq.js";var t=()=>`Kismet home`,n=()=>`Inicio de Kismet`,r=()=>`Início do Kismet`,i=((i={},a={})=>{let o=a.locale??e();return o===`es`?n(i):o===`pt`?r(i):t(i)});export{i as t};

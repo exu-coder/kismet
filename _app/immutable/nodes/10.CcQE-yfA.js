@@ -1,0 +1,1 @@
+import{gt as e,ht as t,m as n}from"../chunks/C04OsEBg.js";import"../chunks/xihTtKlq.js";import"../chunks/DNociw4Q.js";import{n as r,t as i}from"../chunks/CPz8d7kB.js";function a(a,o){e(o,!1);let s=i(`terms`);n(),r(a,{get doc(){return s}}),t()}export{a as component};

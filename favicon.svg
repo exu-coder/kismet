@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 32 32" shape-rendering="crispEdges">
+  <!-- deep space background -->
+  <rect width="32" height="32" fill="#070a14"/>
+  <!-- outer star rays (gold) -->
+  <rect x="15" y="2" width="2" height="6" fill="#f59e0b"/>
+  <rect x="15" y="24" width="2" height="6" fill="#f59e0b"/>
+  <rect x="2" y="15" width="6" height="2" fill="#f59e0b"/>
+  <rect x="24" y="15" width="6" height="2" fill="#f59e0b"/>
+  <!-- diagonal rays -->
+  <rect x="8" y="8" width="2" height="2" fill="#f59e0b"/>
+  <rect x="22" y="8" width="2" height="2" fill="#f59e0b"/>
+  <rect x="8" y="22" width="2" height="2" fill="#f59e0b"/>
+  <rect x="22" y="22" width="2" height="2" fill="#f59e0b"/>
+  <!-- mid rays -->
+  <rect x="11" y="5" width="2" height="3" fill="#f59e0b"/>
+  <rect x="19" y="5" width="2" height="3" fill="#f59e0b"/>
+  <rect x="11" y="24" width="2" height="3" fill="#f59e0b"/>
+  <rect x="19" y="24" width="2" height="3" fill="#f59e0b"/>
+  <rect x="5" y="11" width="3" height="2" fill="#f59e0b"/>
+  <rect x="24" y="11" width="3" height="2" fill="#f59e0b"/>
+  <rect x="5" y="19" width="3" height="2" fill="#f59e0b"/>
+  <rect x="24" y="19" width="3" height="2" fill="#f59e0b"/>
+  <!-- core (paper white) -->
+  <rect x="13" y="13" width="6" height="6" fill="#efe8d6"/>
+  <!-- inner core (deep gold) -->
+  <rect x="14" y="14" width="4" height="4" fill="#d97706"/>
+  <!-- center pixel (bright gold) -->
+  <rect x="15" y="15" width="2" height="2" fill="#f59e0b"/>
+  <!-- companion star (cyan) -->
+  <rect x="25" y="5" width="3" height="3" fill="#6fd3e7"/>
+  <rect x="26" y="4" width="1" height="1" fill="#6fd3e7"/>
+  <rect x="26" y="8" width="1" height="1" fill="#6fd3e7"/>
+  <rect x="24" y="6" width="1" height="1" fill="#6fd3e7"/>
+  <rect x="28" y="6" width="1" height="1" fill="#6fd3e7"/>
+  <!-- faint background stars -->
+  <rect x="4" y="4" width="1" height="1" fill="#8e8aa2"/>
+  <rect x="27" y="27" width="1" height="1" fill="#8e8aa2"/>
+  <rect x="3" y="26" width="1" height="1" fill="#8e8aa2"/>
+  <rect x="28" y="3" width="1" height="1" fill="#8e8aa2"/>
+</svg>
