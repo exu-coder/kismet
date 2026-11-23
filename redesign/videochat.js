@@ -327,7 +327,7 @@
 
     // Peer-ready handshake — offer only once both peers are subscribed.
     chan.on('broadcast', { event: 'ready' }, async ({ payload }) => {
-      if (payload.from === userId || !alive()) return;
+      if (!payload || payload.from === userId || !alive()) return;
       if (!isInitiator || offerSent || !peerConnection) return;
       offerSent = true;
       try {
@@ -426,15 +426,16 @@
     });
 
     chan.on('broadcast', { event: 'chat' }, ({ payload }) => {
-      if (payload.from === userId || !alive()) return;
-      addMessage(payload.text, false);
+      if (!payload || payload.from === userId || !alive()) return;
+      if (typeof payload.text === 'string') addMessage(payload.text, false);
     });
 
     chan.on('broadcast', { event: 'reveal' }, ({ payload }) => {
-      if (payload.from === userId || !alive()) return;
-      remoteLabel.textContent = payload.name;
-      showToast(payload.name + ' revealed their identity!');
-      showFriendRequestButton(payload.name, payload.from, payload.code);
+      if (!payload?.from || payload.from === userId || !alive()) return;
+      const name = String(payload.name || 'Stranger').slice(0, 80);
+      remoteLabel.textContent = name;
+      showToast(name + ' revealed their identity!');
+      showFriendRequestButton(name, payload.from, String(payload.code || '').slice(0, 24));
     });
 
     chan.on('broadcast', { event: 'hangup' }, () => {
@@ -444,8 +445,8 @@
     });
 
     chan.on('broadcast', { event: 'friend-request' }, ({ payload }) => {
-      if (payload.from === userId || !alive()) return;
-      showToast(payload.name + ' sent you a friend request!');
+      if (!payload || payload.from === userId || !alive()) return;
+      showToast(String(payload.name || 'Someone') + ' sent you a friend request!');
     });
 
     // FIX #3: guard the subscription await and everything after it
@@ -570,7 +571,8 @@
     btn.textContent = 'Send friend request to ' + name;
 
     btn.addEventListener('click', async () => {
-      const profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}');
+      let profile = {};
+      try { profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}'); } catch (_) {}
       const myName = profile.name || 'Anonymous';
       const myCode = profile.code || localStorage.getItem('kismet.mycode') || 'KS-XXXX';
 
@@ -672,16 +674,28 @@
     showToast('You revealed your identity!');
   });
 
-  vcSend.addEventListener('click', () => {
+  vcSend.addEventListener('click', async () => {
     const text = vcMsgInput.value.trim();
-    if (!text || !signalingChannel) return;
-    addMessage(text, true);
-    signalingChannel.send({
-      type: 'broadcast',
-      event: 'chat',
-      payload: { text, from: userId }
-    }).catch(() => {});
-    vcMsgInput.value = '';
+    const channel = signalingChannel;
+    if (!text || !channel || vcSend.disabled) return;
+    vcSend.disabled = true;
+    try {
+      const status = await channel.send({
+        type: 'broadcast',
+        event: 'chat',
+        payload: { text, from: userId }
+      });
+      if (status !== 'ok') throw new Error('Realtime message delivery status: ' + status);
+      if (channel === signalingChannel) {
+        addMessage(text, true);
+        vcMsgInput.value = '';
+      }
+    } catch (error) {
+      console.error('Could not send in-call message:', error);
+      showToast('Message could not be sent. Try again.');
+    } finally {
+      vcSend.disabled = false;
+    }
   });
   vcMsgInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') vcSend.click();
