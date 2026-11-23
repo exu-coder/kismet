@@ -19,8 +19,8 @@ port = 54323
 
 [auth]
 enabled = true
-site_url = "https://3565a0f0.kismet-k2f.pages.dev"
-additional_redirect_urls = ["http://localhost:3000"]
+site_url = "https://warpmeet.com"
+additional_redirect_urls = ["https://www.warpmeet.com", "https://3565a0f0.kismet-k2f.pages.dev", "http://localhost:3000"]
 jwt_expiry = 3600
 enable_signup = true
 
