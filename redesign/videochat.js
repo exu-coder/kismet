@@ -130,13 +130,17 @@
 
   // ---- Matchmaking via Supabase Edge Function ----
   const findMatch = async () => {
-    if (isSearching) return;
-    const ok = await ensureCamera();
-    if (!ok) return;
-
+    if (isSearching || callActive) return;
     isSearching = true;
-    setStatus('Searching for a stranger...');
     btnStart.disabled = true;
+    btnStop.disabled = false;
+    btnStop.textContent = 'Cancel search';
+    setStatus('Requesting camera access...');
+    const ok = await ensureCamera();
+    if (!isSearching) return; // Stop may have been pressed while the permission prompt was open.
+    if (!ok) { await endCall(false); return; }
+
+    setStatus('Searching for a stranger...');
 
     const poll = async () => {
       if (!isSearching) return;
@@ -149,10 +153,16 @@
           },
           body: JSON.stringify({ userId, action: 'join' }),
         });
+        if (!res.ok) throw new Error('Matchmaking returned HTTP ' + res.status);
         const data = await res.json();
+        if (!isSearching) return;
 
         if (data.status === 'matched') {
+          if (!data.partnerId || !data.callId || !['initiator', 'receiver'].includes(data.role)) {
+            throw new Error('Matchmaking returned an incomplete match response');
+          }
           isSearching = false;
+          btnStop.textContent = 'Stop';
           partnerId = data.partnerId;
           partnerName = 'Stranger';
           currentCallId = data.callId;
@@ -167,7 +177,10 @@
         if (isSearching) pollTimeout = setTimeout(poll, 1500);
       } catch (err) {
         console.error('Match error', err);
-        if (isSearching) pollTimeout = setTimeout(poll, 2000);
+        if (isSearching) {
+          setStatus('Match service unavailable — retrying...');
+          pollTimeout = setTimeout(poll, 2500);
+        }
       }
     };
     poll();
@@ -241,7 +254,7 @@
 
     peerConnection.ontrack = (e) => {
       if (!alive()) return;
-      remoteVideo.srcObject = e.streams[0];
+      remoteVideo.srcObject = e.streams?.[0] || new MediaStream([e.track]);
       remoteLabel.textContent = partnerName;
       setStatus('Connected');
       if (connectionTimeout) { clearTimeout(connectionTimeout); connectionTimeout = null; }
@@ -476,10 +489,16 @@
     leaveQueue();
 
     remoteVideo.srcObject = null;
+    if (localStream) {
+      localStream.getTracks().forEach(track => { try { track.stop(); } catch (_) {} });
+      localStream = null;
+    }
+    if (localVideo) localVideo.srcObject = null;
     remoteLabel.textContent = 'Stranger';
     setStatus('Ready to match');
     btnStart.disabled = false;
     btnStop.disabled = true;
+    btnStop.textContent = 'Stop';
     btnNext.disabled = true;
     btnMute.disabled = true;
     btnCam.disabled = true;
@@ -521,12 +540,17 @@
       const myName = profile.name || 'Anonymous';
       const myCode = profile.code || localStorage.getItem('kismet.mycode') || 'KS-XXXX';
 
-      await sb.from('profiles').upsert({
+      const { error: profileError } = await sb.from('profiles').upsert({
         user_id: userId,
         name: myName,
         friend_code: myCode,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
+      if (profileError) {
+        console.error('Could not sync profile before friend request:', profileError);
+        showToast('Could not save your profile. Try again.');
+        return;
+      }
 
       const { error } = await sb.from('friend_requests').upsert({
         from_user_id: userId,
@@ -558,7 +582,10 @@
 
   // ---- Event listeners ----
   btnStart.addEventListener('click', findMatch);
-  btnStop.addEventListener('click', () => endCall(true));
+  btnStop.addEventListener('click', () => {
+    if (isSearching) showToast('Search cancelled');
+    endCall(true);
+  });
   btnNext.addEventListener('click', () => {
     endCall(true);
     setTimeout(findMatch, 400);
@@ -580,16 +607,23 @@
   btnReveal.addEventListener('click', async () => {
     if (revealed) { showToast('Already revealed'); return; }
     revealed = true;
-    const profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}');
+    let profile = {};
+    try { profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}'); } catch (_) {}
     const name = profile.name || 'Anonymous';
     const code = profile.code || localStorage.getItem('kismet.mycode') || 'KS-XXXX';
 
-    await sb.from('profiles').upsert({
+    const { error: profileError } = await sb.from('profiles').upsert({
       user_id: userId,
       name,
       friend_code: code,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' });
+    if (profileError) {
+      console.error('Could not save profile before reveal:', profileError);
+      revealed = false;
+      showToast('Could not reveal identity. Please try again.');
+      return;
+    }
 
     btnReveal.classList.add('revealed');
     btnReveal.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> <span>Revealed</span>';
@@ -633,7 +667,12 @@
     pageExited = true;
     callGeneration++;
     callActive = false;
-    if (localStream) localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+    if (localStream) {
+      localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+      localStream = null;
+    }
+    if (localVideo) localVideo.srcObject = null;
+    if (remoteVideo) remoteVideo.srcObject = null;
     if (signalingChannel) {
       signalingChannel.send({
         type: 'broadcast',
