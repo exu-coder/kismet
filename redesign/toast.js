@@ -7,7 +7,7 @@
   const st = document.createElement('style');
   st.textContent = `
     .kismet-toast-container{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);z-index:99999;display:flex;flex-direction:column;align-items:center;gap:.5rem;pointer-events:none}
-    .kismet-toast{background:#1a1a2e;color:#fff;padding:.75rem 1.25rem;border-radius:12px;font-size:.9rem;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:auto;opacity:0;transform:translateY(20px);transition:opacity .3s ease,transform .3s ease;max-width:calc(100vw-2rem);text-align:center}
+    .kismet-toast{background:#1a1a2e;color:#fff;padding:.75rem 1.25rem;border-radius:12px;font-size:.9rem;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:auto;opacity:0;transform:translateY(20px);transition:opacity .3s ease,transform .3s ease;max-width:calc(100vw - 2rem);text-align:center}
     .kismet-toast.show{opacity:1;transform:translateY(0)}
     .kismet-toast.hide{opacity:0;transform:translateY(20px)}
   `;
