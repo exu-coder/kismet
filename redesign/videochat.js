@@ -1,12 +1,10 @@
 /* Kismet video chat — WebRTC + Supabase Realtime signaling
-   Fixed: ICE candidate queuing, no magic delays, camera pre-request,
-   connection recovery, XSS-safe DOM updates, centralized Supabase client. */
+   Fixed: ICE candidate queuing, connection recovery, camera pre-request,
+   TURN servers, connection timeout, no magic delays, matchmaking. */
 (async () => {
-  console.log('Videochat IIFE starting...');
   const SUPABASE_URL = 'https://xjckwcvwssuadqkxgumt.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqY2t3Y3Z3c3N1YWRxa3hndW10Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0MzMyODUsImV4cCI6MjExMTAwOTI4NX0.tJQx1OTv49cci97EcWv82JjToif-CJvcvWDLsRV6ac0';
 
-  // ---- Wait for Supabase (loaded via script tag) ----
   const waitForSupabase = () => new Promise((resolve) => {
     if (window.supabase) { resolve(); return; }
     let attempts = 0;
@@ -16,9 +14,7 @@
     }, 100);
   });
   await waitForSupabase();
-  console.log('Supabase loaded, creating client...');
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  console.log('Supabase client created');
 
   // ---- State ----
   let localStream = null;
@@ -35,6 +31,7 @@
   let announceInterval = null;
   let iceCandidateQueue = [];
   let remoteDescriptionSet = false;
+  let connectionTimeout = null;
 
   // ---- DOM ----
   const $ = (id) => document.getElementById(id);
@@ -86,34 +83,51 @@
     }
   });
 
+  // ---- Camera pre-request ----
+  const requestCamera = async () => {
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+      return true;
+    } catch (e) {
+      showToast('Camera/mic access denied. Please allow to continue.');
+      setStatus('Camera access denied');
+      return false;
+    }
+  };
+
   // ---- Matchmaking via Realtime broadcast ----
   let matchChannel = null;
 
   const findMatch = async () => {
     if (isSearching) return;
+
+    // Request camera FIRST
+    if (!localStream) {
+      setStatus('Requesting camera...');
+      const granted = await requestCamera();
+      if (!granted) return;
+    }
+
     isSearching = true;
     setStatus('Searching for a stranger...');
     btnStart.disabled = true;
 
-    // Subscribe to match notifications FIRST
     matchChannel = sb.channel('matchmaking', { config: { broadcast: { self: false } } });
 
     matchChannel.on('broadcast', { event: 'looking' }, ({ payload }) => {
       if (payload.from === userId || !isSearching) return;
-      // Found a partner! The one with smaller ID initiates
       if (userId < payload.from) {
         isSearching = false;
         partnerId = payload.from;
         partnerName = 'Stranger';
         currentCallId = 'call_' + [userId, partnerId].sort().join('_');
         isInitiator = true;
-        // Notify the partner
         matchChannel.send({
           type: 'broadcast',
           event: 'matched',
           payload: { target: payload.from, caller_id: userId, call_id: currentCallId }
         });
-        // Stop announcing
         if (announceInterval) { clearInterval(announceInterval); announceInterval = null; }
         startCall();
       }
@@ -138,7 +152,6 @@
 
     window._matchChannel = matchChannel;
 
-    // Announce that we're looking
     const announce = () => {
       if (!isSearching) return;
       matchChannel.send({
@@ -152,14 +165,15 @@
   };
 
   // ---- WebRTC ----
-  // TURN servers: use free options. Replace with your own TURN credentials for production.
+  // TURN servers — using free Metered.ca open relay for testing.
+  // For production, replace with your own TURN credentials.
   const ICE_SERVERS = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-      // Free TURN from Metered.ca (replace with your own for production)
-      // { urls: 'turn:relay.metered.ca:80', username: 'YOUR_USERNAME', credential: 'YOUR_CREDENTIAL' },
-      // { urls: 'turn:relay.metered.ca:443', username: 'YOUR_USERNAME', credential: 'YOUR_CREDENTIAL' },
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
     ]
   };
 
@@ -174,19 +188,20 @@
     btnMute.textContent = 'Mute mic';
     btnCam.textContent = 'Cam off';
 
-    // Reset ICE state
     iceCandidateQueue = [];
     remoteDescriptionSet = false;
 
-    // Get local media FIRST (before match, ideally — but here after match)
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
-    } catch (e) {
-      showToast('Camera/mic access denied');
-      setStatus('Camera access denied');
-      endCall(false);
-      return;
+    // If camera wasn't pre-requested, get it now
+    if (!localStream) {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
+      } catch (e) {
+        showToast('Camera/mic access denied');
+        setStatus('Camera access denied');
+        endCall(false);
+        return;
+      }
     }
 
     peerConnection = new RTCPeerConnection(ICE_SERVERS);
@@ -196,6 +211,7 @@
       remoteVideo.srcObject = e.streams[0];
       remoteLabel.textContent = partnerName;
       setStatus('Connected');
+      clearTimeout(connectionTimeout);
       const playPromise = remoteVideo.play();
       if (playPromise !== undefined) {
         playPromise.catch(() => {
@@ -222,18 +238,15 @@
 
     peerConnection.oniceconnectionstatechange = () => {
       const state = peerConnection.iceConnectionState;
-      console.log('ICE state:', state);
       if (state === 'connected' || state === 'completed') {
         setStatus('Connected');
+        clearTimeout(connectionTimeout);
       } else if (state === 'disconnected') {
         setStatus('Reconnecting...');
       } else if (state === 'failed') {
         setStatus('Connection failed');
-        showToast('Connection failed. Trying to reconnect...');
-        // Attempt ICE restart
-        peerConnection.restartIce();
-      } else if (state === 'closed') {
-        setStatus('Disconnected');
+        showToast('Connection failed. Trying next person...');
+        setTimeout(() => { if (peerConnection && peerConnection.iceConnectionState === 'failed') { endCall(true); } }, 2000);
       }
     };
 
@@ -244,7 +257,7 @@
       else if (state === 'failed') {
         setStatus('Connection failed');
         showToast('Connection failed');
-      } else if (state === 'closed') setStatus('Disconnected');
+      }
     };
 
     // Signaling channel
@@ -254,10 +267,8 @@
 
     signalingChannel.on('broadcast', { event: 'offer' }, async ({ payload }) => {
       if (payload.from === userId) return;
-      console.log('Received offer');
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
       remoteDescriptionSet = true;
-      // Flush queued ICE candidates
       flushIceCandidates();
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
@@ -270,7 +281,6 @@
 
     signalingChannel.on('broadcast', { event: 'answer' }, async ({ payload }) => {
       if (payload.from === userId) return;
-      console.log('Received answer');
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
       remoteDescriptionSet = true;
       flushIceCandidates();
@@ -279,9 +289,8 @@
     signalingChannel.on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
       if (payload.from === userId) return;
       if (remoteDescriptionSet) {
-        try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) { console.log('ICE error:', e.message); }
+        try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) {}
       } else {
-        // Queue candidate for later
         iceCandidateQueue.push(payload.candidate);
       }
     });
@@ -309,7 +318,6 @@
 
     await new Promise((resolve) => {
       signalingChannel.subscribe((status) => {
-        console.log('Signaling channel status:', status);
         if (status === 'SUBSCRIBED') resolve();
       });
     });
@@ -319,12 +327,21 @@
     const flushIceCandidates = async () => {
       while (iceCandidateQueue.length > 0) {
         const candidate = iceCandidateQueue.shift();
-        try { await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { console.log('ICE flush error:', e.message); }
+        try { await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) {}
       }
     };
 
+    // Connection timeout: auto-retry after 15s
+    connectionTimeout = setTimeout(() => {
+      if (peerConnection && peerConnection.connectionState !== 'connected') {
+        showToast('Connection timed out. Trying next person...');
+        endCall(true);
+      }
+    }, 15000);
+
     if (isInitiator) {
-      await new Promise(r => setTimeout(r, 1000));
+      // Wait for partner to subscribe (small delay)
+      await new Promise(r => setTimeout(r, 500));
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
       console.log('Sending offer');
@@ -337,6 +354,7 @@
   };
 
   const endCall = async (notify = true) => {
+    clearTimeout(connectionTimeout);
     if (notify && window._signalingChannel) {
       window._signalingChannel.send({
         type: 'broadcast',
@@ -349,6 +367,7 @@
     if (window._signalingChannel) { sb.removeChannel(window._signalingChannel); window._signalingChannel = null; }
     if (window._matchChannel) { sb.removeChannel(window._matchChannel); window._matchChannel = null; }
     if (announceInterval) { clearInterval(announceInterval); announceInterval = null; }
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
     localVideo.srcObject = null;
     remoteVideo.srcObject = null;
     remoteLabel.textContent = 'Stranger';
@@ -368,6 +387,7 @@
     partnerId = null;
     iceCandidateQueue = [];
     remoteDescriptionSet = false;
+    isSearching = false;
   };
 
   const addMessage = (text, isMe) => {
@@ -385,7 +405,6 @@
     btn.id = 'friend-request-btn';
     btn.className = 'vc-btn primary';
     btn.style.marginTop = '.5rem';
-    // XSS-safe: use textContent
     btn.textContent = 'Send friend request to ' + name;
     btn.addEventListener('click', async () => {
       const profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}');
@@ -412,7 +431,6 @@
     revealSection.appendChild(btn);
   };
 
-  // ---- Event listeners ----
   btnStart.addEventListener('click', findMatch);
   btnStop.addEventListener('click', () => endCall(true));
   btnNext.addEventListener('click', () => { endCall(true); setTimeout(findMatch, 500); });
