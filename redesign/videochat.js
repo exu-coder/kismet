@@ -330,14 +330,23 @@
       if (payload.from === userId || !alive()) return;
       if (!isInitiator || offerSent || !peerConnection) return;
       offerSent = true;
-      const offer = await peerConnection.createOffer();
-      if (!alive()) return;
-      await peerConnection.setLocalDescription(offer);
-      await chan.send({
-        type: 'broadcast',
-        event: 'offer',
-        payload: { offer, from: userId }
-      }).catch(() => {});
+      try {
+        const offer = await peerConnection.createOffer();
+        if (!alive()) return;
+        await peerConnection.setLocalDescription(offer);
+        if (!alive()) return;
+        await chan.send({
+          type: 'broadcast',
+          event: 'offer',
+          payload: { offer, from: userId }
+        }).catch(() => {});
+      } catch (error) {
+        console.error('WebRTC offer negotiation failed:', error);
+        if (alive()) {
+          showToast('Could not start the video connection.');
+          await endCall(false);
+        }
+      }
     });
 
     // Presence fallback: detect a partner who closed the tab without hangup.
@@ -361,33 +370,50 @@
     });
 
     chan.on('broadcast', { event: 'offer' }, async ({ payload }) => {
-      if (payload.from === userId || !alive() || !peerConnection) return;
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
-      if (!alive()) return;
-      remoteDescriptionSet = true;
-      if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
-      await flushIceCandidates(gen);
-      const answer = await peerConnection.createAnswer();
-      if (!alive()) return;
-      await peerConnection.setLocalDescription(answer);
-      await chan.send({
-        type: 'broadcast',
-        event: 'answer',
-        payload: { answer, from: userId }
-      }).catch(() => {});
+      if (!payload?.offer || payload.from === userId || !alive() || !peerConnection) return;
+      try {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+        if (!alive()) return;
+        remoteDescriptionSet = true;
+        if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
+        await flushIceCandidates(gen);
+        const answer = await peerConnection.createAnswer();
+        if (!alive()) return;
+        await peerConnection.setLocalDescription(answer);
+        if (!alive()) return;
+        await chan.send({
+          type: 'broadcast',
+          event: 'answer',
+          payload: { answer, from: userId }
+        }).catch(() => {});
+      } catch (error) {
+        console.error('WebRTC answer negotiation failed:', error);
+        if (alive()) {
+          showToast('Could not complete the video connection.');
+          await endCall(false);
+        }
+      }
     });
 
     chan.on('broadcast', { event: 'answer' }, async ({ payload }) => {
-      if (payload.from === userId || !alive() || !peerConnection) return;
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
-      if (!alive()) return;
-      remoteDescriptionSet = true;
-      if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
-      await flushIceCandidates(gen);
+      if (!payload?.answer || payload.from === userId || !alive() || !peerConnection) return;
+      try {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+        if (!alive()) return;
+        remoteDescriptionSet = true;
+        if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
+        await flushIceCandidates(gen);
+      } catch (error) {
+        console.error('WebRTC remote answer failed:', error);
+        if (alive()) {
+          showToast('The other browser could not complete the connection.');
+          await endCall(false);
+        }
+      }
     });
 
     chan.on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
-      if (payload.from === userId || !alive() || !peerConnection) return;
+      if (!payload?.candidate || payload.from === userId || !alive() || !peerConnection) return;
       if (remoteDescriptionSet) {
         try {
           await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
