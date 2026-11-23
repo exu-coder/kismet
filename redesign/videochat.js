@@ -453,7 +453,7 @@
     announceReady();
     readyInterval = setInterval(announceReady, 500);
 
-    connectionTimeout = setTimeout(() => {
+    connectionTimeout = setTimeout(async () => {
       if (alive() && peerConnection && peerConnection.connectionState !== 'connected') {
         showToast('Could not connect — trying next person...');
         await endCall(true);
