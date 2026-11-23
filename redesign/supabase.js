@@ -97,6 +97,9 @@ const auth = {
   },
   async signOut() {
     const client = requireClient();
+    if (window.kismetUser?.is_anonymous) {
+      return { error: new Error('This is an anonymous session. Link an email or GitHub identity before signing out, or you will lose access to this profile.') };
+    }
     const { error } = await client.auth.signOut();
     if (!error) {
       const { data, error: anonError } = await client.auth.signInAnonymously();
