@@ -167,6 +167,8 @@
       if (!email || password.length < 8) { showToast('Enter an email and a password with at least 8 characters.'); return; }
       const { data, error } = await db.auth.signUp(email, password);
       if (error) showToast('Sign up failed: ' + error.message);
+      else if (data.linking && data.passwordSet) showToast('Password set — your anonymous profile is now linked to your email.');
+      else if (data.linking) showToast('Verification email sent. Confirm it, then choose Sign up again to set your password.');
       else if (data.session) { showToast('Account created!'); updateAuthUI(data.user); }
       else showToast('Check your email to confirm your account!');
     });

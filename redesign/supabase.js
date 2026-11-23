@@ -64,16 +64,36 @@ const loadSupabase = () => {
 
 const auth = {
   async signUp(email, password) {
-    const { data, error } = await requireClient().auth.signUp({ email, password });
+    const client = requireClient();
+    const user = window.kismetUser;
+    if (user?.is_anonymous) {
+      if (user.email?.toLowerCase() === email.toLowerCase() && user.email_confirmed_at) {
+        const { data, error } = await client.auth.updateUser({ password });
+        return { data, error, linking: true, passwordSet: true };
+      }
+      const { data, error } = await client.auth.updateUser({ email });
+      return { data, error, linking: true, passwordSet: false };
+    }
+    const { data, error } = await client.auth.signUp({ email, password });
     return { data, error };
   },
   async signIn(email, password) {
-    const { data, error } = await requireClient().auth.signInWithPassword({ email, password });
+    const client = requireClient();
+    if (window.kismetUser?.is_anonymous) {
+      const { data: profile } = await client.from('profiles').select('user_id')
+        .eq('user_id', window.kismetUser.id).maybeSingle();
+      if (profile) {
+        return { data: null, error: new Error('This device has a saved anonymous profile. Use Sign up to link an email to it instead of switching accounts.') };
+      }
+    }
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
     return { data, error };
   },
   async signInWithGitHub() {
-    const { data, error } = await requireClient().auth.signInWithOAuth({ provider: 'github' });
-    return { data, error };
+    const client = requireClient();
+    return window.kismetUser?.is_anonymous
+      ? await client.auth.linkIdentity({ provider: 'github' })
+      : await client.auth.signInWithOAuth({ provider: 'github' });
   },
   async signOut() {
     const client = requireClient();
