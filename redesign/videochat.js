@@ -3,7 +3,6 @@
   const SUPABASE_URL = 'https://xjckwcvwssuadqkxgumt.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqY2t3Y3Z3c3N1YWRxa3hndW10Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0MzMyODUsImV4cCI6MjExMTAwOTI4NX0.tJQx1OTv49cci97EcWv82JjToif-CJvcvWDLsRV6ac0';
 
-  // Wait for Supabase to load (loaded via script tag)
   const waitForSupabase = () => new Promise((resolve) => {
     if (window.supabase) { resolve(); return; }
     let attempts = 0;
@@ -24,6 +23,7 @@
   let isSearching = false;
   let userId = 'user_' + Math.random().toString(36).slice(2, 10);
   let revealed = false;
+  let isInitiator = false;
 
   // ---- DOM ----
   const $ = (id) => document.getElementById(id);
@@ -70,83 +70,81 @@
     }
   });
 
-  // ---- Matchmaking ----
+  // ---- Matchmaking via Realtime broadcast ----
+  let matchChannel = null;
+
   const findMatch = async () => {
     if (isSearching) return;
     isSearching = true;
     setStatus('Searching for a stranger...');
     btnStart.disabled = true;
 
-    // Insert into waiting queue
-    const { data: waiting, error } = await sb.from('waiting_queue').insert({
-      user_id: userId,
-      user_name: 'Anonymous'
-    }).select().single();
+    // Subscribe to match notifications
+    matchChannel = sb.channel('matchmaking', { config: { broadcast: { self: false } } });
 
-    if (error) { showToast('Matchmaking error: ' + error.message); isSearching = false; btnStart.disabled = false; return; }
-
-    // Listen for a match
-    const matchChannel = sb.channel('match_' + userId);
-    matchChannel.on('broadcast', { event: 'matched' }, ({ payload }) => {
-      if (payload.partner_id === userId) {
-        partnerId = payload.user_id;
-        partnerName = payload.user_name || 'Stranger';
-        currentCallId = payload.call_id;
+    matchChannel.on('broadcast', { event: 'looking' }, ({ payload }) => {
+      if (payload.from === userId || !isSearching) return;
+      // Found a partner! The one with smaller ID initiates
+      if (userId < payload.from) {
+        // I am the initiator
         isSearching = false;
-        // Remove from waiting queue
-        sb.from('waiting_queue').delete().eq('user_id', userId);
-        // Start WebRTC
-        startCall(true);
+        partnerId = payload.from;
+        partnerName = 'Stranger';
+        currentCallId = 'call_' + [userId, partnerId].sort().join('_');
+        isInitiator = true;
+        // Notify the partner
+        matchChannel.send({
+          type: 'broadcast',
+          event: 'matched',
+          payload: { target: payload.from, caller_id: userId, call_id: currentCallId }
+        });
+        // Remove from searching
+        matchChannel.send({ type: 'broadcast', event: 'stop-looking', payload: { from: userId } });
+        startCall();
       }
     });
-    matchChannel.subscribe();
 
-    // Check for existing waiting users
-    const checkMatch = async () => {
-      const { data: waiters } = await sb.from('waiting_queue')
-        .select('*')
-        .neq('user_id', userId)
-        .order('created_at', { ascending: true })
-        .limit(1);
+    matchChannel.on('broadcast', { event: 'matched' }, ({ payload }) => {
+      if (payload.target !== userId || !isSearching) return;
+      isSearching = false;
+      partnerId = payload.caller_id;
+      partnerName = 'Stranger';
+      currentCallId = payload.call_id;
+      isInitiator = false;
+      matchChannel.send({ type: 'broadcast', event: 'stop-looking', payload: { from: userId } });
+      startCall();
+    });
 
-      if (waiters && waiters.length > 0) {
-        const partner = waiters[0];
-        // Create a call
-        const { data: call } = await sb.from('active_calls').insert({
-          user1_id: userId,
-          user2_id: partner.user_id
-        }).select().single();
+    matchChannel.on('broadcast', { event: 'stop-looking' }, ({ payload }) => {
+      // Partner found someone else, ignore
+    });
 
-        if (call) {
-          currentCallId = call.id;
-          partnerId = partner.user_id;
-          partnerName = partner.user_name || 'Stranger';
-          // Notify partner
-          const partnerChannel = sb.channel('match_' + partner.user_id);
-          partnerChannel.subscribe(() => {
-            partnerChannel.send({
-              type: 'broadcast',
-              event: 'matched',
-              payload: { user_id: userId, user_name: 'Anonymous', partner_id: partner.user_id, call_id: call.id }
-            });
-          });
-          // Remove both from queue
-          await sb.from('waiting_queue').delete().eq('user_id', userId);
-          await sb.from('waiting_queue').delete().eq('user_id', partner.user_id);
-          isSearching = false;
-          startCall(false);
-        }
-      }
-    };
+    await new Promise((resolve) => {
+      matchChannel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') resolve();
+      });
+    });
 
-    // Poll for match every 2 seconds
-    const pollInterval = setInterval(async () => {
-      if (!isSearching) { clearInterval(pollInterval); return; }
-      await checkMatch();
-    }, 2000);
+    // Announce that we're looking
+    matchChannel.send({
+      type: 'broadcast',
+      event: 'looking',
+      payload: { from: userId }
+    });
 
-    // Also check immediately
-    await checkMatch();
+    // Keep announcing every 3 seconds in case the first was missed
+    const announceInterval = setInterval(() => {
+      if (!isSearching) { clearInterval(announceInterval); return; }
+      matchChannel.send({
+        type: 'broadcast',
+        event: 'looking',
+        payload: { from: userId }
+      });
+    }, 3000);
+
+    // Store for cleanup
+    window._matchChannel = matchChannel;
+    window._announceInterval = announceInterval;
   };
 
   // ---- WebRTC ----
@@ -157,14 +155,13 @@
     ]
   };
 
-  const startCall = async (isInitiator) => {
+  const startCall = async () => {
     setStatus('Connecting...');
     revealSection.style.display = 'block';
     chatSection.style.display = 'flex';
     btnStop.disabled = false;
     btnNext.disabled = false;
 
-    // Get local media
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
@@ -174,7 +171,6 @@
       return;
     }
 
-    // Create peer connection
     peerConnection = new RTCPeerConnection(ICE_SERVERS);
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
@@ -185,13 +181,18 @@
     };
 
     peerConnection.onicecandidate = (e) => {
-      if (e.candidate) {
-        signalingChannel.send({
+      if (e.candidate && window._signalingChannel) {
+        window._signalingChannel.send({
           type: 'broadcast',
           event: 'ice-candidate',
           payload: { candidate: e.candidate, from: userId }
         });
       }
+    };
+
+    peerConnection.onconnectionstatechange = () => {
+      if (peerConnection.connectionState === 'connected') setStatus('Connected');
+      else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') setStatus('Disconnected');
     };
 
     // Signaling channel
@@ -201,7 +202,6 @@
 
     signalingChannel.on('broadcast', { event: 'offer' }, async ({ payload }) => {
       if (payload.from === userId) return;
-      console.log('Received offer');
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
@@ -214,13 +214,12 @@
 
     signalingChannel.on('broadcast', { event: 'answer' }, async ({ payload }) => {
       if (payload.from === userId) return;
-      console.log('Received answer');
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
     });
 
     signalingChannel.on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
       if (payload.from === userId) return;
-      try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) { console.log('ICE error:', e.message); }
+      try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) {}
     });
 
     signalingChannel.on('broadcast', { event: 'chat' }, ({ payload }) => {
@@ -232,24 +231,29 @@
       if (payload.from === userId) return;
       remoteLabel.textContent = payload.name;
       showToast(payload.name + ' revealed their identity!');
+      showFriendRequestButton(payload.name, payload.from);
     });
 
     signalingChannel.on('broadcast', { event: 'hangup' }, () => {
       endCall(false);
     });
 
-    // Wait for subscription before sending
+    signalingChannel.on('broadcast', { event: 'friend-request' }, ({ payload }) => {
+      if (payload.from === userId) return;
+      showToast(payload.name + ' sent you a friend request!');
+    });
+
     await new Promise((resolve) => {
       signalingChannel.subscribe((status) => {
-        console.log('Signaling channel status:', status);
         if (status === 'SUBSCRIBED') resolve();
       });
     });
 
-    // Store signaling channel globally
     window._signalingChannel = signalingChannel;
 
+    // If initiator, create and send offer after delay
     if (isInitiator) {
+      await new Promise(r => setTimeout(r, 1500));
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
       console.log('Sending offer');
@@ -272,6 +276,8 @@
     if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
     if (peerConnection) { peerConnection.close(); peerConnection = null; }
     if (window._signalingChannel) { sb.removeChannel(window._signalingChannel); window._signalingChannel = null; }
+    if (window._matchChannel) { sb.removeChannel(window._matchChannel); window._matchChannel = null; }
+    if (window._announceInterval) { clearInterval(window._announceInterval); }
     localVideo.srcObject = null;
     remoteVideo.srcObject = null;
     remoteLabel.textContent = 'Stranger';
@@ -281,14 +287,11 @@
     btnNext.disabled = true;
     revealSection.style.display = 'none';
     chatSection.style.display = 'none';
+    const frBtn = document.getElementById('friend-request-btn');
+    if (frBtn) frBtn.remove();
     revealed = false;
     btnReveal.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> <span>Reveal identity</span>';
     btnReveal.classList.remove('revealed');
-    // Update call ended
-    if (currentCallId) {
-      await sb.from('active_calls').update({ ended_at: new Date().toISOString() }).eq('id', currentCallId);
-      currentCallId = null;
-    }
     partnerId = null;
   };
 
@@ -300,7 +303,39 @@
     vcMessages.scrollTop = vcMessages.scrollHeight;
   };
 
-  // ---- Event listeners ----
+  const showFriendRequestButton = (name, fromId) => {
+    let btn = document.getElementById('friend-request-btn');
+    if (btn) btn.remove();
+    btn = document.createElement('button');
+    btn.id = 'friend-request-btn';
+    btn.className = 'vc-btn primary';
+    btn.style.marginTop = '.5rem';
+    btn.innerHTML = 'Send friend request to ' + name;
+    btn.addEventListener('click', async () => {
+      const profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}');
+      const myName = profile.name || 'Anonymous';
+      const myCode = profile.code || 'KS-XXXX';
+      await sb.from('friend_requests').insert({
+        from_user_id: userId,
+        to_user_id: fromId,
+        from_name: myName,
+        from_code: myCode,
+        status: 'pending'
+      });
+      if (window._signalingChannel) {
+        window._signalingChannel.send({
+          type: 'broadcast',
+          event: 'friend-request',
+          payload: { from: userId, name: myName }
+        });
+      }
+      showToast('Friend request sent!');
+      btn.disabled = true;
+      btn.textContent = 'Request sent';
+    });
+    revealSection.appendChild(btn);
+  };
+
   btnStart.addEventListener('click', findMatch);
   btnStop.addEventListener('click', () => endCall(true));
   btnNext.addEventListener('click', () => { endCall(true); setTimeout(findMatch, 500); });
@@ -308,7 +343,8 @@
   btnReveal.addEventListener('click', () => {
     if (revealed) { showToast('Already revealed'); return; }
     revealed = true;
-    const name = (window.kismetUser?.user_metadata?.name) || 'Kismet User';
+    const profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}');
+    const name = profile.name || 'Anonymous';
     btnReveal.classList.add('revealed');
     btnReveal.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> <span>Revealed</span>';
     revealStatus.textContent = 'Identity revealed!';
@@ -335,11 +371,10 @@
   });
   vcMsgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') vcSend.click(); });
 
-  // Cleanup on page unload
   window.addEventListener('beforeunload', () => {
-    if (isSearching) sb.from('waiting_queue').delete().eq('user_id', userId);
     endCall(false);
     lobbyChannel.unsubscribe();
+    if (window._matchChannel) sb.removeChannel(window._matchChannel);
   });
 
   setStatus('Ready to match');
