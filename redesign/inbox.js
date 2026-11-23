@@ -23,12 +23,14 @@
   }
 
   const userId = window.kismetIdentity?.getAnonId() || localStorage.getItem('kismet.anonId');
+  const isSafeUserId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+  if (!isSafeUserId(userId)) { list.textContent = 'Your session ID is invalid. Please reload the page.'; return; }
   let friends = [];
   let active = null;
   let activeMessages = [];
   let loadingMessages = false;
 
-  const friendUserId = friend => friend?.friend_id || null;
+  const friendUserId = friend => isSafeUserId(friend?.friend_id) ? friend.friend_id : null;
 
   const renderList = () => {
     list.replaceChildren();
@@ -116,7 +118,10 @@
   const send = async () => {
     const content = input.value.trim();
     const recipientId = friendUserId(active);
-    if (!content || !recipientId || !userId || sendBtn.disabled) return;
+    if (!content || content.length > 4000 || !recipientId || !userId || sendBtn.disabled) {
+      if (content.length > 4000) notify('Messages must be 4,000 characters or fewer.');
+      return;
+    }
     sendBtn.disabled = true;
     const { error } = await sb.from('messages').insert({
       from_user_id: userId,
