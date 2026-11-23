@@ -142,7 +142,6 @@ returns boolean language sql stable security definer set search_path=public,real
 $$;
 revoke all on function public.kismet_can_access_signal_topic() from public,anon;
 grant execute on function public.kismet_can_access_signal_topic() to authenticated;
-alter table realtime.messages enable row level security;
 drop policy if exists kismet_lobby_presence_read on realtime.messages;
 drop policy if exists kismet_lobby_presence_write on realtime.messages;
 drop policy if exists kismet_signal_read on realtime.messages;
