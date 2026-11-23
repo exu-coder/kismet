@@ -1,14 +1,10 @@
 /* Kismet safety UI — 18+ gate, camera check, anonymous one-press reporting */
 (() => {
-  const SUPABASE_URL = 'https://xjckwcvwssuadqkxgumt.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqY2t3Y3Z3c3N1YWRxa3hndW10Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0MzMyODUsImV4cCI6MjExMTAwOTI4NX0.tJQx1OTv49cci97EcWv82JjToif-CJvcvWDLsRV6ac0';
-
   const $ = (id) => document.getElementById(id);
   const ageGate = $('age-gate');
   const reportModal = $('report-modal');
   const reportBtn = $('btn-report');
   const warning = $('camera-warning');
-  let sb = null;
   let current = { partnerId: null, callId: null };
 
   // ---- 18+ gate ----
@@ -98,24 +94,7 @@
   });
 
   // ---- Reporting ----
-  const waitForSupabase = () => new Promise((resolve) => {
-    if (window.supabase) { resolve(); return; }
-    let n = 0;
-    const t = setInterval(() => {
-      if (window.supabase || n > 100) { clearInterval(t); resolve(); }
-      n++;
-    }, 100);
-  });
-
-  const getClient = async () => {
-    // Reuse supabase.js's client rather than creating a second GoTrue instance.
-    if (window.kismetSupabase) return window.kismetSupabase;
-    await waitForSupabase();
-    if (!window.supabase) return null;
-    if (!sb) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    return sb;
-  };
-
+  // Uses the shared window.kismetReady client from redesign/supabase.js
   reportBtn?.addEventListener('click', () => {
     if (!current.partnerId) return;
     if (reportModal) reportModal.hidden = false;
@@ -123,29 +102,44 @@
   $('report-cancel')?.addEventListener('click', () => {
     if (reportModal) reportModal.hidden = true;
   });
-  $('report-submit')?.addEventListener('click', async () => {
+  $('report-submit')?.addEventListener('click', async (event) => {
     // Capture the call identity BEFORE any await — the call may end while the
-    // dialog is open, and kismet:call-ended clears `current`.
-    const { partnerId, callId } = current;
-    if (!partnerId) return;
-    const checked = document.querySelector('input[name="report-reason"]:checked');
-    const reason = checked?.value || 'other';
-    const client = await getClient();
-    if (!client) return;
-    const reporterId = localStorage.getItem('kismet.anonId') || '';
-    const { error } = await client.from('reports').insert({
-      reporter_id: reporterId,
-      reported_id: partnerId,
-      reason,
-      call_id: callId,
-    });
-    if (reportModal) reportModal.hidden = true;
-    if (error) {
-      console.error(error);
-      window.dispatchEvent(new Event('kismet:report-failed'));
-      return;
+    // dialog is open, which clears `current` via kismet:call-ended.
+    const reportTarget = { ...current };
+    if (!reportTarget.partnerId) return;
+    const button = event.currentTarget;
+    if (button.disabled) return;
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = 'Submitting…';
+    try {
+      const client = await window.kismetReady;
+      const reporterId = window.kismetIdentity?.getAnonId() || localStorage.getItem('kismet.anonId');
+      if (!reporterId) throw new Error('Could not identify this session');
+      const checked = document.querySelector('input[name="report-reason"]:checked');
+      const reason = checked?.value || 'other';
+      const { error } = await client.from('reports').insert({
+        reporter_id: reporterId,
+        reported_id: reportTarget.partnerId,
+        reason,
+        call_id: reportTarget.callId,
+      });
+      if (error) throw error;
+      if (reportModal) reportModal.hidden = true;
+      window.dispatchEvent(new Event('kismet:report'));
+    } catch (error) {
+      console.error('Report submission failed:', error);
+      const toast = $('vc-toast');
+      if (toast) {
+        toast.textContent = 'Could not submit report — please try again';
+        toast.style.opacity = '1';
+        clearTimeout(toast._t);
+        toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+      }
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
     }
-    window.dispatchEvent(new Event('kismet:report'));
   });
 
   // Surface a failed report through the existing toast element

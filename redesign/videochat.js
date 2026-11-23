@@ -20,13 +20,14 @@
 
   // ---- State ----
   let localStream = null;
+  let mediaRequestGeneration = 0;
   let peerConnection = null;
   let signalingChannel = null;
   let currentCallId = null;
   let partnerId = null;
   let partnerName = 'Stranger';
   let isSearching = false;
-  const userId = localStorage.getItem('kismet.anonId') || ('user_' + Math.random().toString(36).slice(2, 10));
+  const userId = window.kismetIdentity?.getAnonId() || localStorage.getItem('kismet.anonId') || ('user_' + Math.random().toString(36).slice(2, 10));
   localStorage.setItem('kismet.anonId', userId);
   let revealed = false;
   let isInitiator = false;
@@ -99,8 +100,14 @@
       localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
       localStream = null;
     }
+    const requestGeneration = ++mediaRequestGeneration;
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+      if (requestGeneration !== mediaRequestGeneration) {
+        stream.getTracks().forEach(track => { try { track.stop(); } catch (_) {} });
+        return false;
+      }
+      localStream = stream;
       localVideo.srcObject = localStream;
       applyTrackStates(localStream);
       window.dispatchEvent(new CustomEvent('kismet:camera-ready', { detail: { stream: localStream } }));
@@ -130,13 +137,17 @@
 
   // ---- Matchmaking via Supabase Edge Function ----
   const findMatch = async () => {
-    if (isSearching) return;
-    const ok = await ensureCamera();
-    if (!ok) return;
-
+    if (isSearching || callActive) return;
     isSearching = true;
-    setStatus('Searching for a stranger...');
     btnStart.disabled = true;
+    btnStop.disabled = false;
+    btnStop.textContent = 'Cancel search';
+    setStatus('Requesting camera access...');
+    const ok = await ensureCamera();
+    if (!isSearching) return; // Stop may have been pressed while the permission prompt was open.
+    if (!ok) { await endCall(false); return; }
+
+    setStatus('Searching for a stranger...');
 
     const poll = async () => {
       if (!isSearching) return;
@@ -149,10 +160,16 @@
           },
           body: JSON.stringify({ userId, action: 'join' }),
         });
+        if (!res.ok) throw new Error('Matchmaking returned HTTP ' + res.status);
         const data = await res.json();
+        if (!isSearching) return;
 
         if (data.status === 'matched') {
+          if (!data.partnerId || !data.callId) {
+            throw new Error('Matchmaking returned an incomplete match response');
+          }
           isSearching = false;
+          btnStop.textContent = 'Stop';
           partnerId = data.partnerId;
           partnerName = 'Stranger';
           currentCallId = data.callId;
@@ -167,7 +184,10 @@
         if (isSearching) pollTimeout = setTimeout(poll, 1500);
       } catch (err) {
         console.error('Match error', err);
-        if (isSearching) pollTimeout = setTimeout(poll, 2000);
+        if (isSearching) {
+          setStatus('Match service unavailable — retrying...');
+          pollTimeout = setTimeout(poll, 2500);
+        }
       }
     };
     poll();
@@ -198,10 +218,16 @@
 
   const sendHangup = async (chan) => {
     if (!chan) return;
+    let timer;
     try {
-      await chan.send({ type: 'broadcast', event: 'hangup', payload: { from: userId } });
+      await Promise.race([
+        chan.send({ type: 'broadcast', event: 'hangup', payload: { from: userId } }),
+        new Promise(resolve => { timer = setTimeout(resolve, 1200); }),
+      ]);
     } catch (e) {
       console.warn('hangup send failed', e);
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -241,7 +267,7 @@
 
     peerConnection.ontrack = (e) => {
       if (!alive()) return;
-      remoteVideo.srcObject = e.streams[0];
+      remoteVideo.srcObject = e.streams?.[0] || new MediaStream([e.track]);
       remoteLabel.textContent = partnerName;
       setStatus('Connected');
       if (connectionTimeout) { clearTimeout(connectionTimeout); connectionTimeout = null; }
@@ -292,7 +318,7 @@
       else if (state === 'failed') {
         setStatus('Connection failed');
         showToast('Could not connect. Hitting Next...');
-        setTimeout(() => {
+        setTimeout(async () => {
           if (!alive()) return;
           endCall(true);
           findMatch();
@@ -307,17 +333,26 @@
 
     // Peer-ready handshake — offer only once both peers are subscribed.
     chan.on('broadcast', { event: 'ready' }, async ({ payload }) => {
-      if (payload.from === userId || !alive()) return;
+      if (!payload || payload.from === userId || !alive()) return;
       if (!isInitiator || offerSent || !peerConnection) return;
       offerSent = true;
-      const offer = await peerConnection.createOffer();
-      if (!alive()) return;
-      await peerConnection.setLocalDescription(offer);
-      await chan.send({
-        type: 'broadcast',
-        event: 'offer',
-        payload: { offer, from: userId }
-      }).catch(() => {});
+      try {
+        const offer = await peerConnection.createOffer();
+        if (!alive()) return;
+        await peerConnection.setLocalDescription(offer);
+        if (!alive()) return;
+        await chan.send({
+          type: 'broadcast',
+          event: 'offer',
+          payload: { offer, from: userId }
+        }).catch(() => {});
+      } catch (error) {
+        console.error('WebRTC offer negotiation failed:', error);
+        if (alive()) {
+          showToast('Could not start the video connection.');
+          await endCall(false);
+        }
+      }
     });
 
     // Presence fallback: detect a partner who closed the tab without hangup.
@@ -341,33 +376,50 @@
     });
 
     chan.on('broadcast', { event: 'offer' }, async ({ payload }) => {
-      if (payload.from === userId || !alive() || !peerConnection) return;
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
-      if (!alive()) return;
-      remoteDescriptionSet = true;
-      if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
-      await flushIceCandidates(gen);
-      const answer = await peerConnection.createAnswer();
-      if (!alive()) return;
-      await peerConnection.setLocalDescription(answer);
-      await chan.send({
-        type: 'broadcast',
-        event: 'answer',
-        payload: { answer, from: userId }
-      }).catch(() => {});
+      if (!payload?.offer || payload.from === userId || !alive() || !peerConnection) return;
+      try {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+        if (!alive()) return;
+        remoteDescriptionSet = true;
+        if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
+        await flushIceCandidates(gen);
+        const answer = await peerConnection.createAnswer();
+        if (!alive()) return;
+        await peerConnection.setLocalDescription(answer);
+        if (!alive()) return;
+        await chan.send({
+          type: 'broadcast',
+          event: 'answer',
+          payload: { answer, from: userId }
+        }).catch(() => {});
+      } catch (error) {
+        console.error('WebRTC answer negotiation failed:', error);
+        if (alive()) {
+          showToast('Could not complete the video connection.');
+          await endCall(false);
+        }
+      }
     });
 
     chan.on('broadcast', { event: 'answer' }, async ({ payload }) => {
-      if (payload.from === userId || !alive() || !peerConnection) return;
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
-      if (!alive()) return;
-      remoteDescriptionSet = true;
-      if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
-      await flushIceCandidates(gen);
+      if (!payload?.answer || payload.from === userId || !alive() || !peerConnection) return;
+      try {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+        if (!alive()) return;
+        remoteDescriptionSet = true;
+        if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
+        await flushIceCandidates(gen);
+      } catch (error) {
+        console.error('WebRTC remote answer failed:', error);
+        if (alive()) {
+          showToast('The other browser could not complete the connection.');
+          await endCall(false);
+        }
+      }
     });
 
     chan.on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
-      if (payload.from === userId || !alive() || !peerConnection) return;
+      if (!payload?.candidate || payload.from === userId || !alive() || !peerConnection) return;
       if (remoteDescriptionSet) {
         try {
           await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
@@ -380,15 +432,16 @@
     });
 
     chan.on('broadcast', { event: 'chat' }, ({ payload }) => {
-      if (payload.from === userId || !alive()) return;
-      addMessage(payload.text, false);
+      if (!payload || payload.from === userId || !alive()) return;
+      if (typeof payload.text === 'string') addMessage(payload.text, false);
     });
 
     chan.on('broadcast', { event: 'reveal' }, ({ payload }) => {
-      if (payload.from === userId || !alive()) return;
-      remoteLabel.textContent = payload.name;
-      showToast(payload.name + ' revealed their identity!');
-      showFriendRequestButton(payload.name, payload.from, payload.code);
+      if (!payload?.from || payload.from === userId || !alive()) return;
+      const name = String(payload.name || 'Stranger').slice(0, 80);
+      remoteLabel.textContent = name;
+      showToast(name + ' revealed their identity!');
+      showFriendRequestButton(name, payload.from, String(payload.code || '').slice(0, 24));
     });
 
     chan.on('broadcast', { event: 'hangup' }, () => {
@@ -398,8 +451,8 @@
     });
 
     chan.on('broadcast', { event: 'friend-request' }, ({ payload }) => {
-      if (payload.from === userId || !alive()) return;
-      showToast(payload.name + ' sent you a friend request!');
+      if (!payload || payload.from === userId || !alive()) return;
+      showToast(String(payload.name || 'Someone') + ' sent you a friend request!');
     });
 
     // FIX #3: guard the subscription await and everything after it
@@ -433,7 +486,7 @@
     announceReady();
     readyInterval = setInterval(announceReady, 500);
 
-    connectionTimeout = setTimeout(() => {
+    connectionTimeout = setTimeout(async () => {
       if (alive() && peerConnection && peerConnection.connectionState !== 'connected') {
         showToast('Could not connect — trying next person...');
         endCall(true);
@@ -457,6 +510,7 @@
 
   const endCall = (notify = true) => {
     callGeneration++;
+    mediaRequestGeneration++; // invalidate any camera permission request still in flight
     callActive = false;
 
     if (connectionTimeout) { clearTimeout(connectionTimeout); connectionTimeout = null; }
@@ -469,6 +523,14 @@
     // tail of this function would reset isSearching after the new search started.
     const chanToClose = signalingChannel;
     signalingChannel = null;
+
+    // Release camera/mic as soon as the call ends (PR #2), but keep teardown
+    // synchronous so a following findMatch() cannot be raced by this function.
+    if (localStream) {
+      localStream.getTracks().forEach(track => { try { track.stop(); } catch (_) {} });
+      localStream = null;
+    }
+    if (localVideo) localVideo.srcObject = null;
     if (peerConnection) { peerConnection.close(); peerConnection = null; }
     if (pollTimeout) { clearTimeout(pollTimeout); pollTimeout = null; }
     leaveQueue();
@@ -491,6 +553,7 @@
     setStatus('Ready to match');
     btnStart.disabled = false;
     btnStop.disabled = true;
+    btnStop.textContent = 'Stop';
     btnNext.disabled = true;
     btnMute.disabled = true;
     btnCam.disabled = true;
@@ -528,16 +591,22 @@
     btn.textContent = 'Send friend request to ' + name;
 
     btn.addEventListener('click', async () => {
-      const profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}');
+      let profile = {};
+      try { profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}'); } catch (_) {}
       const myName = profile.name || 'Anonymous';
       const myCode = profile.code || localStorage.getItem('kismet.mycode') || 'KS-XXXX';
 
-      await sb.from('profiles').upsert({
+      const { error: profileError } = await sb.from('profiles').upsert({
         user_id: userId,
         name: myName,
         friend_code: myCode,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
+      if (profileError) {
+        console.error('Could not sync profile before friend request:', profileError);
+        showToast('Could not save your profile. Try again.');
+        return;
+      }
 
       const { error } = await sb.from('friend_requests').upsert({
         from_user_id: userId,
@@ -569,7 +638,10 @@
 
   // ---- Event listeners ----
   btnStart.addEventListener('click', findMatch);
-  btnStop.addEventListener('click', () => endCall(true));
+  btnStop.addEventListener('click', () => {
+    if (isSearching) showToast('Search cancelled');
+    endCall(true);
+  });
   btnNext.addEventListener('click', () => {
     endCall(true);
     findMatch();
@@ -591,16 +663,23 @@
   btnReveal.addEventListener('click', async () => {
     if (revealed) { showToast('Already revealed'); return; }
     revealed = true;
-    const profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}');
+    let profile = {};
+    try { profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}'); } catch (_) {}
     const name = profile.name || 'Anonymous';
     const code = profile.code || localStorage.getItem('kismet.mycode') || 'KS-XXXX';
 
-    await sb.from('profiles').upsert({
+    const { error: profileError } = await sb.from('profiles').upsert({
       user_id: userId,
       name,
       friend_code: code,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' });
+    if (profileError) {
+      console.error('Could not save profile before reveal:', profileError);
+      revealed = false;
+      showToast('Could not reveal identity. Please try again.');
+      return;
+    }
 
     btnReveal.classList.add('revealed');
     btnReveal.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> <span>Revealed</span>';
@@ -615,23 +694,35 @@
     showToast('You revealed your identity!');
   });
 
-  vcSend.addEventListener('click', () => {
+  vcSend.addEventListener('click', async () => {
     const text = vcMsgInput.value.trim();
-    if (!text || !signalingChannel) return;
-    addMessage(text, true);
-    signalingChannel.send({
-      type: 'broadcast',
-      event: 'chat',
-      payload: { text, from: userId }
-    }).catch(() => {});
-    vcMsgInput.value = '';
+    const channel = signalingChannel;
+    if (!text || !channel || vcSend.disabled) return;
+    vcSend.disabled = true;
+    try {
+      const status = await channel.send({
+        type: 'broadcast',
+        event: 'chat',
+        payload: { text, from: userId }
+      });
+      if (status !== 'ok') throw new Error('Realtime message delivery status: ' + status);
+      if (channel === signalingChannel) {
+        addMessage(text, true);
+        vcMsgInput.value = '';
+      }
+    } catch (error) {
+      console.error('Could not send in-call message:', error);
+      showToast('Message could not be sent. Try again.');
+    } finally {
+      vcSend.disabled = false;
+    }
   });
   vcMsgInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') vcSend.click();
   });
 
   // Safety UI hook — report submitted by redesign/safety.js
-  window.addEventListener('kismet:report', () => {
+  window.addEventListener('kismet:report', async () => {
     showToast('Report submitted — moving on');
     endCall(true);
     findMatch();
@@ -643,8 +734,14 @@
     if (pageExited) return;
     pageExited = true;
     callGeneration++;
+    mediaRequestGeneration++;
     callActive = false;
-    if (localStream) localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+    if (localStream) {
+      localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+      localStream = null;
+    }
+    if (localVideo) localVideo.srcObject = null;
+    if (remoteVideo) remoteVideo.srcObject = null;
     if (signalingChannel) {
       signalingChannel.send({
         type: 'broadcast',
