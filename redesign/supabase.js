@@ -25,19 +25,23 @@ window.kismetIdentity = { getAnonId: ensureAnonId };
 
 const loadSdk = () => new Promise((resolve, reject) => {
   if (window.supabase?.createClient) return resolve();
-  const existing = document.querySelector('script[data-kismet-supabase-sdk]');
-  if (existing) {
-    existing.addEventListener('load', () => resolve(), { once: true });
-    existing.addEventListener('error', () => reject(new Error('Could not load Supabase SDK')), { once: true });
-    if (window.supabase?.createClient) resolve();
-    return;
-  }
   const script = document.createElement('script');
+  let settled = false;
+  const finish = (error) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    if (error) reject(error);
+    else resolve();
+  };
+  const timer = setTimeout(() => finish(new Error('Timed out loading Supabase SDK')), 10000);
   script.src = '/redesign/supabase.min.js';
   script.async = true;
   script.dataset.kismetSupabaseSdk = 'true';
-  script.onload = () => window.supabase?.createClient ? resolve() : reject(new Error('Supabase SDK loaded without createClient'));
-  script.onerror = () => reject(new Error('Could not load Supabase SDK'));
+  script.onload = () => window.supabase?.createClient
+    ? finish()
+    : finish(new Error('Supabase SDK loaded without createClient'));
+  script.onerror = () => finish(new Error('Could not load Supabase SDK'));
   document.head.appendChild(script);
 });
 
