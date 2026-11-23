@@ -27,7 +27,7 @@
   let partnerId = null;
   let partnerName = 'Stranger';
   let isSearching = false;
-  const userId = localStorage.getItem('kismet.anonId') || ('user_' + Math.random().toString(36).slice(2, 10));
+  const userId = window.kismetIdentity?.getAnonId() || localStorage.getItem('kismet.anonId') || ('user_' + Math.random().toString(36).slice(2, 10));
   localStorage.setItem('kismet.anonId', userId);
   let revealed = false;
   let isInitiator = false;
@@ -219,7 +219,7 @@
   const sendHangup = async (chan) => {
     if (!chan) return;
     try {
-      await chan.send({ type: 'broadcast', event: 'hangup', payload: { from: userId } });
+      await Promise.race([chan.send({ type: 'broadcast', event: 'hangup', payload: { from: userId } }), new Promise(resolve => setTimeout(resolve, 1200))]);
     } catch (e) {
       console.warn('hangup send failed', e);
     }
@@ -312,10 +312,10 @@
       else if (state === 'failed') {
         setStatus('Connection failed');
         showToast('Could not connect. Hitting Next...');
-        setTimeout(() => {
+        setTimeout(async () => {
           if (!alive()) return;
-          endCall(true);
-          setTimeout(findMatch, 400);
+          await endCall(true);
+          await findMatch();
         }, 1200);
       }
     };
@@ -456,8 +456,8 @@
     connectionTimeout = setTimeout(() => {
       if (alive() && peerConnection && peerConnection.connectionState !== 'connected') {
         showToast('Could not connect — trying next person...');
-        endCall(true);
-        setTimeout(findMatch, 500);
+        await endCall(true);
+        await findMatch();
       }
     }, 15000);
   };
@@ -594,9 +594,9 @@
     if (isSearching) showToast('Search cancelled');
     endCall(true);
   });
-  btnNext.addEventListener('click', () => {
-    endCall(true);
-    setTimeout(findMatch, 400);
+  btnNext.addEventListener('click', async () => {
+    await endCall(true);
+    await findMatch();
   });
 
   btnMute.addEventListener('click', () => {
@@ -662,10 +662,10 @@
   });
 
   // Safety UI hook — report submitted by redesign/safety.js
-  window.addEventListener('kismet:report', () => {
+  window.addEventListener('kismet:report', async () => {
     showToast('Report submitted — moving on');
-    endCall(true);
-    setTimeout(findMatch, 600);
+    await endCall(true);
+    await findMatch();
   });
 
   // FIX #2: pagehide uses best-effort send + keepalive fetch (survives unload)
