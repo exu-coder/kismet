@@ -13,6 +13,7 @@
   <script src="/redesign/supabase.min.js" defer></script>
   <script src="/redesign/supabase.js" defer></script>
   <script src="/redesign/videochat.js" defer></script>
+  <script src="/redesign/safety.js" defer></script>
   <style>
     .vc-container{max-width:900px;margin:0 auto;padding:1rem;display:flex;flex-direction:column;gap:1rem;min-height:calc(100vh - 8rem)}
     .vc-status{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:var(--color-bg-container,#0c101f);border:1px solid var(--color-border,#232b47);border-radius:8px}
@@ -31,6 +32,16 @@
     .vc-btn.danger{background:var(--color-danger,#f5585f);color:#fff}
     .vc-btn.ghost{background:var(--color-bg-container,#0c101f);color:var(--color-text,#efe8d6);border:1px solid var(--color-border,#232b47)}
     .vc-btn:disabled{opacity:.4;cursor:not-allowed}
+    .vc-camera-warning{padding:.6rem .9rem;background:rgba(245,158,11,.12);border:1px solid var(--color-primary,#f59e0b);border-radius:8px;color:var(--color-text,#efe8d6);font-size:.85rem}
+    .vc-camera-warning[hidden]{display:none}
+    .vc-modal-backdrop{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:1.5rem;background:rgba(3,5,12,.85);backdrop-filter:blur(6px)}
+    .vc-modal-backdrop[hidden]{display:none}
+    .vc-modal{max-width:420px;width:100%;padding:1.5rem;background:var(--color-bg-container,#0c101f);border:1px solid var(--color-border,#232b47);border-radius:12px;text-align:center}
+    .vc-modal h2{margin:0 0 .5rem;color:var(--color-text,#efe8d6);font-size:1.15rem}
+    .vc-modal p{margin:0 0 1rem;color:var(--color-text-light,#b6b1c4);font-size:.88rem;line-height:1.5}
+    .vc-modal-actions{display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap}
+    .vc-reasons{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem}
+    .vc-reasons label{display:flex;align-items:center;gap:.5rem;text-align:left;color:var(--color-text,#efe8d6);font-size:.86rem}
     .vc-chat{display:flex;flex-direction:column;gap:.5rem;padding:.75rem;background:var(--color-bg-container,#0c101f);border:1px solid var(--color-border,#232b47);border-radius:8px;max-height:200px}
     .vc-messages{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:.3rem;min-height:80px;max-height:120px}
     .vc-msg{padding:.3rem .6rem;border-radius:6px;font-size:.85rem;max-width:80%}
@@ -69,12 +80,16 @@
             <span class="vc-video-label" id="remote-label">Stranger</span>
           </div>
         </div>
+        <div id="camera-warning" class="vc-camera-warning" hidden>
+          Your camera looks dark or blocked. Check your light and lens, then try again.
+        </div>
         <div class="vc-controls">
           <button class="vc-btn primary" id="btn-start">Start</button>
           <button class="vc-btn ghost" id="btn-mute" disabled>Mute mic</button>
           <button class="vc-btn ghost" id="btn-cam" disabled>Cam off</button>
           <button class="vc-btn danger" id="btn-stop" disabled>Stop</button>
           <button class="vc-btn ghost" id="btn-next" disabled>Next</button>
+          <button class="vc-btn danger" id="btn-report" disabled title="Report this person anonymously">Report</button>
         </div>
         <div class="vc-reveal" id="reveal-section" style="display:none">
           <h3>Reveal identity</h3>
@@ -93,5 +108,34 @@
     </main>
   </div>
   <div id="vc-toast" style="position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);padding:.6rem 1rem;background:var(--color-bg-raised,#151b30);border:1px solid var(--color-border,#232b47);border-radius:8px;color:var(--color-text,#efe8d6);font-size:.85rem;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none"></div>
+
+  <div id="age-gate" class="vc-modal-backdrop" hidden>
+    <div class="vc-modal" role="dialog" aria-modal="true" aria-labelledby="age-title">
+      <h2 id="age-title">Adults only</h2>
+      <p>Kismet is strictly 18+. You must confirm you are 18 or older to use random video chat.</p>
+      <div class="vc-modal-actions">
+        <button class="vc-btn ghost" id="age-leave">Leave</button>
+        <button class="vc-btn primary" id="age-accept">I'm 18 or older</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="report-modal" class="vc-modal-backdrop" hidden>
+    <div class="vc-modal" role="dialog" aria-modal="true" aria-labelledby="report-title">
+      <h2 id="report-title">Report this person</h2>
+      <p>Reports are anonymous. The reported person is never told who sent them.</p>
+      <div class="vc-reasons" id="report-reasons">
+        <label><input type="radio" name="report-reason" value="inappropriate" checked> Inappropriate behaviour</label>
+        <label><input type="radio" name="report-reason" value="exposure"> Exposure or nudity</label>
+        <label><input type="radio" name="report-reason" value="underage"> Underage</label>
+        <label><input type="radio" name="report-reason" value="spam"> Spam or scam</label>
+        <label><input type="radio" name="report-reason" value="other"> Other</label>
+      </div>
+      <div class="vc-modal-actions">
+        <button class="vc-btn ghost" id="report-cancel">Cancel</button>
+        <button class="vc-btn danger" id="report-submit">Submit report</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

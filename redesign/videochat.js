@@ -1,6 +1,6 @@
 /* Kismet video chat — WebRTC + Supabase Realtime signaling
-   Fixes: ICE candidate queuing, pre-request camera, no magic delays,
-   connection timeout, TURN-ready, better recovery & cleanup. */
+   Hardened: track-state reset, awaited hangup + presence fallback,
+   async cancel guards, single-offer handshake, mobile camera recovery. */
 (async () => {
   const SUPABASE_URL = 'https://xjckwcvwssuadqkxgumt.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqY2t3Y3Z3c3N1YWRxa3hndW10Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0MzMyODUsImV4cCI6MjExMTAwOTI4NX0.tJQx1OTv49cci97EcWv82JjToif-CJvcvWDLsRV6ac0';
@@ -15,26 +15,33 @@
     }, 100);
   });
   await waitForSupabase();
+  if (!window.supabase) return;
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // ---- State ----
   let localStream = null;
   let peerConnection = null;
+  let signalingChannel = null;
   let currentCallId = null;
   let partnerId = null;
   let partnerName = 'Stranger';
   let isSearching = false;
-  let userId = localStorage.getItem('kismet.anonId') || ('user_' + Math.random().toString(36).slice(2, 10));
+  const userId = localStorage.getItem('kismet.anonId') || ('user_' + Math.random().toString(36).slice(2, 10));
   localStorage.setItem('kismet.anonId', userId);
   let revealed = false;
   let isInitiator = false;
   let readyInterval = null;
   let offerSent = false;
   let connectionTimeout = null;
+  let peerGoneTimeout = null;
+  let pollTimeout = null;
   let iceCandidateQueue = [];
   let remoteDescriptionSet = false;
   let micMuted = false;
   let camOff = false;
+  let callGeneration = 0;   // incremented on every start/end to invalidate stale async work
+  let callActive = false;
+  let peerPresent = false;
 
   // ---- DOM ----
   const $ = (id) => document.getElementById(id);
@@ -63,31 +70,40 @@
     clearTimeout(vcToast._t);
     vcToast._t = setTimeout(() => { vcToast.style.opacity = '0'; }, 3000);
   };
-
   const setStatus = (text) => { statusText.textContent = text; };
 
-  // ---- Presence ----
-  const lobbyChannel = sb.channel('lobby', {
-    config: { presence: { key: userId } }
-  });
-
+  // ---- Presence (online counter) ----
+  const lobbyChannel = sb.channel('lobby', { config: { presence: { key: userId } } });
   lobbyChannel.on('presence', { event: 'sync' }, () => {
-    const state = lobbyChannel.presenceState();
-    onlineCount.textContent = Object.keys(state).length;
+    if (onlineCount) onlineCount.textContent = Object.keys(lobbyChannel.presenceState()).length;
   });
-
   lobbyChannel.subscribe(async (status) => {
     if (status === 'SUBSCRIBED') {
       await lobbyChannel.track({ user_id: userId, online_at: new Date().toISOString() });
     }
   });
 
-  // ---- Pre-request camera ----
+  // ---- Camera / track helpers ----
+  const hasLiveVideo = (s) => !!(s && s.getVideoTracks().some(t => t.readyState === 'live'));
+
+  const applyTrackStates = (s) => {
+    if (!s) return;
+    s.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
+    s.getVideoTracks().forEach(t => { t.enabled = !camOff; });
+  };
+
   const ensureCamera = async () => {
-    if (localStream) return true;
+    // FIX #5: a stream can exist while its tracks have ended (mobile backgrounding)
+    if (hasLiveVideo(localStream)) return true;
+    if (localStream) {
+      localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+      localStream = null;
+    }
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
       localVideo.srcObject = localStream;
+      applyTrackStates(localStream);
+      window.dispatchEvent(new CustomEvent('kismet:camera-ready', { detail: { stream: localStream } }));
       return true;
     } catch (e) {
       showToast('Camera/mic access is required');
@@ -96,12 +112,25 @@
     }
   };
 
-  // ---- Matchmaking via Supabase Edge Function ----
-  let pollTimeout = null;
+  const replaceMediaTracks = () => {
+    if (!peerConnection || !localStream) return;
+    peerConnection.getSenders().forEach(sender => {
+      if (!sender.track) return;
+      const fresh = localStream.getTracks().find(t => t.kind === sender.track.kind && t.readyState === 'live');
+      if (fresh) sender.replaceTrack(fresh).catch(() => {});
+    });
+  };
 
+  // Recover a dead camera when the app comes back to the foreground
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden || !localStream || hasLiveVideo(localStream)) return;
+    const ok = await ensureCamera();
+    if (ok) replaceMediaTracks();
+  });
+
+  // ---- Matchmaking via Supabase Edge Function ----
   const findMatch = async () => {
     if (isSearching) return;
-
     const ok = await ensureCamera();
     if (!ok) return;
 
@@ -111,19 +140,15 @@
 
     const poll = async () => {
       if (!isSearching) return;
-
       try {
-        const res = await fetch(
-          SUPABASE_URL + '/functions/v1/matchmake',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
-            },
-            body: JSON.stringify({ userId, action: 'join' }),
-          }
-        );
+        const res = await fetch(SUPABASE_URL + '/functions/v1/matchmake', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ userId, action: 'join' }),
+        });
         const data = await res.json();
 
         if (data.status === 'matched') {
@@ -133,39 +158,35 @@
           currentCallId = data.callId;
           isInitiator = data.role === 'initiator';
           if (pollTimeout) { clearTimeout(pollTimeout); pollTimeout = null; }
+          window.dispatchEvent(new CustomEvent('kismet:call-started', {
+            detail: { partnerId, callId: currentCallId },
+          }));
           startCall();
           return;
         }
-
-        if (isSearching) {
-          pollTimeout = setTimeout(poll, 1500);
-        }
+        if (isSearching) pollTimeout = setTimeout(poll, 1500);
       } catch (err) {
         console.error('Match error', err);
-        if (isSearching) {
-          pollTimeout = setTimeout(poll, 2000);
-        }
+        if (isSearching) pollTimeout = setTimeout(poll, 2000);
       }
     };
-
     poll();
   };
 
   // ---- WebRTC ----
-  // IMPORTANT: Add your real TURN credentials here (Metered, Cloudflare, Twilio, or self-hosted)
   const ICE_SERVERS = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-      // Free TURN from Metered.ca (open relay)
       { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
       { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
       { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
     ]
   };
 
-  const flushIceCandidates = async () => {
+  const flushIceCandidates = async (gen) => {
     while (iceCandidateQueue.length > 0) {
+      if (gen !== callGeneration || !peerConnection) return;
       const candidate = iceCandidateQueue.shift();
       try {
         await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
@@ -175,7 +196,21 @@
     }
   };
 
+  const sendHangup = async (chan) => {
+    if (!chan) return;
+    try {
+      await chan.send({ type: 'broadcast', event: 'hangup', payload: { from: userId } });
+    } catch (e) {
+      console.warn('hangup send failed', e);
+    }
+  };
+
   const startCall = async () => {
+    const gen = ++callGeneration;
+    callActive = true;
+    offerSent = false;                 // FIX #4: reset BEFORE handlers are registered
+    const alive = () => gen === callGeneration && callActive;
+
     setStatus('Connecting...');
     revealSection.style.display = 'block';
     chatSection.style.display = 'flex';
@@ -183,33 +218,33 @@
     btnNext.disabled = false;
     btnMute.disabled = false;
     btnCam.disabled = false;
-    btnMute.textContent = 'Mute mic';
-    btnCam.textContent = 'Cam off';
+
+    // FIX #1: reset flags AND the actual track states from any previous mute/cam-off
     micMuted = false;
     camOff = false;
+    applyTrackStates(localStream);
+    btnMute.textContent = 'Mute mic';
+    btnCam.textContent = 'Cam off';
 
     iceCandidateQueue = [];
     remoteDescriptionSet = false;
+    peerPresent = false;
 
-    if (!localStream) {
+    if (!hasLiveVideo(localStream)) {
       const ok = await ensureCamera();
-      if (!ok) {
-        endCall(false);
-        return;
-      }
+      if (!alive()) return;            // FIX #3: cancel guard after await
+      if (!ok) { endCall(false); return; }
     }
 
     peerConnection = new RTCPeerConnection(ICE_SERVERS);
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
     peerConnection.ontrack = (e) => {
+      if (!alive()) return;
       remoteVideo.srcObject = e.streams[0];
       remoteLabel.textContent = partnerName;
       setStatus('Connected');
-      if (connectionTimeout) {
-        clearTimeout(connectionTimeout);
-        connectionTimeout = null;
-      }
+      if (connectionTimeout) { clearTimeout(connectionTimeout); connectionTimeout = null; }
       const playPromise = remoteVideo.play();
       if (playPromise !== undefined) {
         playPromise.catch(() => {
@@ -225,24 +260,21 @@
     };
 
     peerConnection.onicecandidate = (e) => {
-      if (e.candidate && window._signalingChannel) {
-        window._signalingChannel.send({
+      if (e.candidate && alive() && signalingChannel) {
+        signalingChannel.send({
           type: 'broadcast',
           event: 'ice-candidate',
           payload: { candidate: e.candidate, from: userId }
-        });
+        }).catch(() => {});
       }
     };
 
     peerConnection.oniceconnectionstatechange = () => {
-      const state = peerConnection?.iceConnectionState;
-      console.log('ICE state:', state);
+      if (!alive() || !peerConnection) return;
+      const state = peerConnection.iceConnectionState;
       if (state === 'connected' || state === 'completed') {
         setStatus('Connected');
-        if (connectionTimeout) {
-          clearTimeout(connectionTimeout);
-          connectionTimeout = null;
-        }
+        if (connectionTimeout) { clearTimeout(connectionTimeout); connectionTimeout = null; }
       } else if (state === 'disconnected') {
         setStatus('Reconnecting...');
       } else if (state === 'failed') {
@@ -253,65 +285,89 @@
     };
 
     peerConnection.onconnectionstatechange = () => {
-      const state = peerConnection?.connectionState;
+      if (!alive() || !peerConnection) return;
+      const state = peerConnection.connectionState;
       if (state === 'connected') setStatus('Connected');
       else if (state === 'disconnected') setStatus('Reconnecting...');
       else if (state === 'failed') {
         setStatus('Connection failed');
         showToast('Could not connect. Hitting Next...');
         setTimeout(() => {
+          if (!alive()) return;
           endCall(true);
           setTimeout(findMatch, 400);
         }, 1200);
       }
     };
 
-    // Signaling
-    const signalingChannel = sb.channel('signal_' + currentCallId, {
-      config: { broadcast: { self: false } }
+    const chan = sb.channel('signal_' + currentCallId, {
+      config: { broadcast: { self: false }, presence: { key: userId } }
     });
+    signalingChannel = chan;
 
-    // Peer-ready handshake: both sides announce until a remote description arrives.
-    // This prevents the initiator's offer being broadcast before the responder subscribes.
-    signalingChannel.on('broadcast', { event: 'ready' }, async ({ payload }) => {
-      if (payload.from === userId) return;
+    // Peer-ready handshake — offer only once both peers are subscribed.
+    chan.on('broadcast', { event: 'ready' }, async ({ payload }) => {
+      if (payload.from === userId || !alive()) return;
       if (!isInitiator || offerSent || !peerConnection) return;
       offerSent = true;
       const offer = await peerConnection.createOffer();
+      if (!alive()) return;
       await peerConnection.setLocalDescription(offer);
-      console.log('Sending offer (peer ready)');
-      await signalingChannel.send({
+      await chan.send({
         type: 'broadcast',
         event: 'offer',
         payload: { offer, from: userId }
-      });
+      }).catch(() => {});
     });
 
-    signalingChannel.on('broadcast', { event: 'offer' }, async ({ payload }) => {
-      if (payload.from === userId) return;
+    // Presence fallback: detect a partner who closed the tab without hangup.
+    chan.on('presence', { event: 'sync' }, () => {
+      if (!alive()) return;
+      const peers = Object.keys(chan.presenceState()).filter(k => k !== userId);
+      if (peers.length > 0) {
+        peerPresent = true;
+        if (peerGoneTimeout) { clearTimeout(peerGoneTimeout); peerGoneTimeout = null; }
+      } else if (peerPresent && !peerGoneTimeout) {
+        peerGoneTimeout = setTimeout(() => {
+          peerGoneTimeout = null;
+          if (!alive()) return;
+          const now = Object.keys(chan.presenceState()).filter(k => k !== userId);
+          if (now.length === 0) {
+            showToast('Partner left the call');
+            endCall(false);
+          }
+        }, 2500);
+      }
+    });
+
+    chan.on('broadcast', { event: 'offer' }, async ({ payload }) => {
+      if (payload.from === userId || !alive() || !peerConnection) return;
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+      if (!alive()) return;
       remoteDescriptionSet = true;
       if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
-      await flushIceCandidates();
+      await flushIceCandidates(gen);
       const answer = await peerConnection.createAnswer();
+      if (!alive()) return;
       await peerConnection.setLocalDescription(answer);
-      await signalingChannel.send({
+      await chan.send({
         type: 'broadcast',
         event: 'answer',
         payload: { answer, from: userId }
-      });
+      }).catch(() => {});
     });
 
-    signalingChannel.on('broadcast', { event: 'answer' }, async ({ payload }) => {
-      if (payload.from === userId) return;
+    chan.on('broadcast', { event: 'answer' }, async ({ payload }) => {
+      if (payload.from === userId || !alive() || !peerConnection) return;
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+      if (!alive()) return;
       remoteDescriptionSet = true;
       if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
-      await flushIceCandidates();
+      await flushIceCandidates(gen);
     });
 
-    signalingChannel.on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
-      if (payload.from === userId) return;
+    chan.on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
+      if (payload.from === userId || !alive() || !peerConnection) return;
       if (remoteDescriptionSet) {
         try {
           await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
@@ -323,51 +379,62 @@
       }
     });
 
-    signalingChannel.on('broadcast', { event: 'chat' }, ({ payload }) => {
-      if (payload.from === userId) return;
+    chan.on('broadcast', { event: 'chat' }, ({ payload }) => {
+      if (payload.from === userId || !alive()) return;
       addMessage(payload.text, false);
     });
 
-    signalingChannel.on('broadcast', { event: 'reveal' }, ({ payload }) => {
-      if (payload.from === userId) return;
+    chan.on('broadcast', { event: 'reveal' }, ({ payload }) => {
+      if (payload.from === userId || !alive()) return;
       remoteLabel.textContent = payload.name;
       showToast(payload.name + ' revealed their identity!');
       showFriendRequestButton(payload.name, payload.from, payload.code);
     });
 
-    signalingChannel.on('broadcast', { event: 'hangup' }, () => {
+    chan.on('broadcast', { event: 'hangup' }, () => {
+      if (!alive()) return;
+      showToast('Partner ended the call');
       endCall(false);
     });
 
-    signalingChannel.on('broadcast', { event: 'friend-request' }, ({ payload }) => {
-      if (payload.from === userId) return;
+    chan.on('broadcast', { event: 'friend-request' }, ({ payload }) => {
+      if (payload.from === userId || !alive()) return;
       showToast(payload.name + ' sent you a friend request!');
     });
 
-    await new Promise((resolve) => {
-      signalingChannel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') resolve();
-      });
+    // FIX #3: guard the subscription await and everything after it
+    const subStatus = await new Promise((resolve) => {
+      let settled = false;
+      const finish = (s) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(subTimer);
+        resolve(s);
+      };
+      const subTimer = setTimeout(() => finish('TIMED_OUT'), 10000);
+      chan.subscribe(finish);
     });
+    if (!alive() || subStatus !== 'SUBSCRIBED') {
+      if (signalingChannel === chan) signalingChannel = null;
+      sb.removeChannel(chan);
+      return;
+    }
+    await chan.track({ user_id: userId });
+    if (!alive()) {
+      if (signalingChannel === chan) signalingChannel = null;
+      sb.removeChannel(chan);
+      return;
+    }
 
-    window._signalingChannel = signalingChannel;
-
-    offerSent = false;
     const announceReady = () => {
-      if (window._signalingChannel && peerConnection && !remoteDescriptionSet) {
-        signalingChannel.send({
-          type: 'broadcast',
-          event: 'ready',
-          payload: { from: userId }
-        });
-      }
+      if (!alive() || !peerConnection || remoteDescriptionSet) return;
+      chan.send({ type: 'broadcast', event: 'ready', payload: { from: userId } }).catch(() => {});
     };
     announceReady();
     readyInterval = setInterval(announceReady, 500);
 
-    // Connection timeout — if not connected in 15s, auto Next
     connectionTimeout = setTimeout(() => {
-      if (peerConnection && peerConnection.connectionState !== 'connected') {
+      if (alive() && peerConnection && peerConnection.connectionState !== 'connected') {
         showToast('Could not connect — trying next person...');
         endCall(true);
         setTimeout(findMatch, 500);
@@ -375,45 +442,38 @@
     }, 15000);
   };
 
-  const endCall = async (notify = true) => {
-    if (connectionTimeout) {
-      clearTimeout(connectionTimeout);
-      connectionTimeout = null;
-    }
-    if (readyInterval) {
-      clearInterval(readyInterval);
-      readyInterval = null;
-    }
-    offerSent = false;
-    if (notify && window._signalingChannel) {
-      window._signalingChannel.send({
-        type: 'broadcast',
-        event: 'hangup',
-        payload: { from: userId }
-      });
-    }
-    if (peerConnection) {
-      peerConnection.close();
-      peerConnection = null;
-    }
-    // Keep localStream alive so Next is faster (stop only on full page leave)
-    if (window._signalingChannel) {
-      sb.removeChannel(window._signalingChannel);
-      window._signalingChannel = null;
-    }
-    if (pollTimeout) {
-      clearTimeout(pollTimeout);
-      pollTimeout = null;
-    }
-    // Leave the match queue
-    fetch(SUPABASE_URL + '/functions/v1/matchmake', {
+  const leaveQueue = (keepalive = false) => {
+    const init = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({ userId, action: 'leave' }),
-    }).catch(() => {});
+    };
+    if (keepalive) init.keepalive = true;
+    return fetch(SUPABASE_URL + '/functions/v1/matchmake', init).catch(() => {});
+  };
+
+  const endCall = async (notify = true) => {
+    callGeneration++;
+    callActive = false;
+
+    if (connectionTimeout) { clearTimeout(connectionTimeout); connectionTimeout = null; }
+    if (peerGoneTimeout) { clearTimeout(peerGoneTimeout); peerGoneTimeout = null; }
+    if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
+    offerSent = false;
+
+    // FIX #2: detach the channel reference BEFORE awaiting the hangup broadcast,
+    // so a fast "Next" can't have its new channel removed by this cleanup.
+    const chanToClose = signalingChannel;
+    signalingChannel = null;
+    if (notify && chanToClose) await sendHangup(chanToClose);
+    if (chanToClose) sb.removeChannel(chanToClose);
+
+    if (peerConnection) { peerConnection.close(); peerConnection = null; }
+    if (pollTimeout) { clearTimeout(pollTimeout); pollTimeout = null; }
+    leaveQueue();
 
     remoteVideo.srcObject = null;
     remoteLabel.textContent = 'Stranger';
@@ -433,7 +493,9 @@
     partnerId = null;
     iceCandidateQueue = [];
     remoteDescriptionSet = false;
+    peerPresent = false;
     isSearching = false;
+    window.dispatchEvent(new CustomEvent('kismet:call-ended'));
   };
 
   const addMessage = (text, isMe) => {
@@ -459,7 +521,6 @@
       const myName = profile.name || 'Anonymous';
       const myCode = profile.code || localStorage.getItem('kismet.mycode') || 'KS-XXXX';
 
-      // 1. Ensure my profile exists
       await sb.from('profiles').upsert({
         user_id: userId,
         name: myName,
@@ -467,7 +528,6 @@
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
 
-      // 2. Send friend request (upsert = idempotent)
       const { error } = await sb.from('friend_requests').upsert({
         from_user_id: userId,
         to_user_id: fromId,
@@ -481,16 +541,13 @@
         showToast('Could not send request');
         return;
       }
-
-      // 3. Notify via signaling
-      if (window._signalingChannel) {
-        window._signalingChannel.send({
+      if (signalingChannel) {
+        signalingChannel.send({
           type: 'broadcast',
           event: 'friend-request',
           payload: { from: userId, name: myName, code: myCode },
-        });
+        }).catch(() => {});
       }
-
       showToast('Friend request sent!');
       btn.disabled = true;
       btn.textContent = 'Request sent';
@@ -499,6 +556,7 @@
     revealSection.appendChild(btn);
   };
 
+  // ---- Event listeners ----
   btnStart.addEventListener('click', findMatch);
   btnStop.addEventListener('click', () => endCall(true));
   btnNext.addEventListener('click', () => {
@@ -526,7 +584,6 @@
     const name = profile.name || 'Anonymous';
     const code = profile.code || localStorage.getItem('kismet.mycode') || 'KS-XXXX';
 
-    // Save / update my profile
     await sb.from('profiles').upsert({
       user_id: userId,
       name,
@@ -537,36 +594,58 @@
     btnReveal.classList.add('revealed');
     btnReveal.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> <span>Revealed</span>';
     revealStatus.textContent = 'Identity revealed!';
-    if (window._signalingChannel) {
-      window._signalingChannel.send({
+    if (signalingChannel) {
+      signalingChannel.send({
         type: 'broadcast',
         event: 'reveal',
         payload: { name, from: userId, code },
-      });
+      }).catch(() => {});
     }
     showToast('You revealed your identity!');
   });
 
   vcSend.addEventListener('click', () => {
     const text = vcMsgInput.value.trim();
-    if (!text || !window._signalingChannel) return;
+    if (!text || !signalingChannel) return;
     addMessage(text, true);
-    window._signalingChannel.send({
+    signalingChannel.send({
       type: 'broadcast',
       event: 'chat',
       payload: { text, from: userId }
-    });
+    }).catch(() => {});
     vcMsgInput.value = '';
   });
   vcMsgInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') vcSend.click();
   });
 
-  window.addEventListener('beforeunload', () => {
-    if (localStream) localStream.getTracks().forEach(t => t.stop());
-    endCall(false);
-    lobbyChannel.unsubscribe();
+  // Safety UI hook — report submitted by redesign/safety.js
+  window.addEventListener('kismet:report', () => {
+    showToast('Report submitted — moving on');
+    endCall(true);
+    setTimeout(findMatch, 600);
   });
+
+  // FIX #2: pagehide uses best-effort send + keepalive fetch (survives unload)
+  let pageExited = false;
+  const handlePageExit = () => {
+    if (pageExited) return;
+    pageExited = true;
+    callGeneration++;
+    callActive = false;
+    if (localStream) localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+    if (signalingChannel) {
+      signalingChannel.send({
+        type: 'broadcast',
+        event: 'hangup',
+        payload: { from: userId },
+      }).catch(() => {});
+    }
+    leaveQueue(true);
+    lobbyChannel.unsubscribe();
+  };
+  window.addEventListener('pagehide', handlePageExit);
+  window.addEventListener('beforeunload', handlePageExit);
 
   setStatus('Ready to match');
   console.log('Videochat ready. User ID:', userId);
