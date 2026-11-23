@@ -20,6 +20,7 @@
 
   // ---- State ----
   let localStream = null;
+  let mediaRequestGeneration = 0;
   let peerConnection = null;
   let signalingChannel = null;
   let currentCallId = null;
@@ -99,8 +100,14 @@
       localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
       localStream = null;
     }
+    const requestGeneration = ++mediaRequestGeneration;
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+      if (requestGeneration !== mediaRequestGeneration) {
+        stream.getTracks().forEach(track => { try { track.stop(); } catch (_) {} });
+        return false;
+      }
+      localStream = stream;
       localVideo.srcObject = localStream;
       applyTrackStates(localStream);
       window.dispatchEvent(new CustomEvent('kismet:camera-ready', { detail: { stream: localStream } }));
@@ -158,7 +165,7 @@
         if (!isSearching) return;
 
         if (data.status === 'matched') {
-          if (!data.partnerId || !data.callId || !['initiator', 'receiver'].includes(data.role)) {
+          if (!data.partnerId || !data.callId) {
             throw new Error('Matchmaking returned an incomplete match response');
           }
           isSearching = false;
@@ -470,6 +477,7 @@
 
   const endCall = async (notify = true) => {
     callGeneration++;
+    mediaRequestGeneration++; // invalidate any camera permission request still in flight
     callActive = false;
 
     if (connectionTimeout) { clearTimeout(connectionTimeout); connectionTimeout = null; }
@@ -481,6 +489,11 @@
     // so a fast "Next" can't have its new channel removed by this cleanup.
     const chanToClose = signalingChannel;
     signalingChannel = null;
+    if (localStream) {
+      localStream.getTracks().forEach(track => { try { track.stop(); } catch (_) {} });
+      localStream = null;
+    }
+    if (localVideo) localVideo.srcObject = null;
     if (notify && chanToClose) await sendHangup(chanToClose);
     if (chanToClose) sb.removeChannel(chanToClose);
 
@@ -489,11 +502,6 @@
     leaveQueue();
 
     remoteVideo.srcObject = null;
-    if (localStream) {
-      localStream.getTracks().forEach(track => { try { track.stop(); } catch (_) {} });
-      localStream = null;
-    }
-    if (localVideo) localVideo.srcObject = null;
     remoteLabel.textContent = 'Stranger';
     setStatus('Ready to match');
     btnStart.disabled = false;
@@ -666,6 +674,7 @@
     if (pageExited) return;
     pageExited = true;
     callGeneration++;
+    mediaRequestGeneration++;
     callActive = false;
     if (localStream) {
       localStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
