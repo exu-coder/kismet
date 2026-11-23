@@ -107,6 +107,15 @@
     }, 100);
   });
 
+  const getClient = async () => {
+    // Reuse supabase.js's client rather than creating a second GoTrue instance.
+    if (window.kismetSupabase) return window.kismetSupabase;
+    await waitForSupabase();
+    if (!window.supabase) return null;
+    if (!sb) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return sb;
+  };
+
   reportBtn?.addEventListener('click', () => {
     if (!current.partnerId) return;
     if (reportModal) reportModal.hidden = false;
@@ -115,18 +124,20 @@
     if (reportModal) reportModal.hidden = true;
   });
   $('report-submit')?.addEventListener('click', async () => {
-    if (!current.partnerId) return;
+    // Capture the call identity BEFORE any await — the call may end while the
+    // dialog is open, and kismet:call-ended clears `current`.
+    const { partnerId, callId } = current;
+    if (!partnerId) return;
     const checked = document.querySelector('input[name="report-reason"]:checked');
     const reason = checked?.value || 'other';
-    await waitForSupabase();
-    if (!window.supabase) return;
-    if (!sb) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const client = await getClient();
+    if (!client) return;
     const reporterId = localStorage.getItem('kismet.anonId') || '';
-    const { error } = await sb.from('reports').insert({
+    const { error } = await client.from('reports').insert({
       reporter_id: reporterId,
-      reported_id: current.partnerId,
+      reported_id: partnerId,
       reason,
-      call_id: current.callId,
+      call_id: callId,
     });
     if (reportModal) reportModal.hidden = true;
     if (error) {

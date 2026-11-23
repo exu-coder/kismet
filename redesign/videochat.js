@@ -295,7 +295,7 @@
         setTimeout(() => {
           if (!alive()) return;
           endCall(true);
-          setTimeout(findMatch, 400);
+          findMatch();
         }, 1200);
       }
     };
@@ -437,7 +437,7 @@
       if (alive() && peerConnection && peerConnection.connectionState !== 'connected') {
         showToast('Could not connect — trying next person...');
         endCall(true);
-        setTimeout(findMatch, 500);
+        findMatch();
       }
     }, 15000);
   };
@@ -455,7 +455,7 @@
     return fetch(SUPABASE_URL + '/functions/v1/matchmake', init).catch(() => {});
   };
 
-  const endCall = async (notify = true) => {
+  const endCall = (notify = true) => {
     callGeneration++;
     callActive = false;
 
@@ -464,16 +464,27 @@
     if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
     offerSent = false;
 
-    // FIX #2: detach the channel reference BEFORE awaiting the hangup broadcast,
-    // so a fast "Next" can't have its new channel removed by this cleanup.
+    // All state/UI teardown is synchronous. The hangup is fire-and-forget so a
+    // slow mobile network can't delay a following findMatch() — otherwise the
+    // tail of this function would reset isSearching after the new search started.
     const chanToClose = signalingChannel;
     signalingChannel = null;
-    if (notify && chanToClose) await sendHangup(chanToClose);
-    if (chanToClose) sb.removeChannel(chanToClose);
-
     if (peerConnection) { peerConnection.close(); peerConnection = null; }
     if (pollTimeout) { clearTimeout(pollTimeout); pollTimeout = null; }
     leaveQueue();
+
+    if (chanToClose) {
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        sb.removeChannel(chanToClose);
+      };
+      // Never leave the channel subscribed if the broadcast hangs.
+      setTimeout(cleanup, 3000);
+      if (notify) sendHangup(chanToClose).then(cleanup, cleanup);
+      else cleanup();
+    }
 
     remoteVideo.srcObject = null;
     remoteLabel.textContent = 'Stranger';
@@ -561,7 +572,7 @@
   btnStop.addEventListener('click', () => endCall(true));
   btnNext.addEventListener('click', () => {
     endCall(true);
-    setTimeout(findMatch, 400);
+    findMatch();
   });
 
   btnMute.addEventListener('click', () => {
@@ -623,7 +634,7 @@
   window.addEventListener('kismet:report', () => {
     showToast('Report submitted — moving on');
     endCall(true);
-    setTimeout(findMatch, 600);
+    findMatch();
   });
 
   // FIX #2: pagehide uses best-effort send + keepalive fetch (survives unload)
@@ -646,6 +657,10 @@
   };
   window.addEventListener('pagehide', handlePageExit);
   window.addEventListener('beforeunload', handlePageExit);
+  // A bfcache restore resurrects the stopped camera/dead presence with a stale UI.
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) window.location.reload();
+  });
 
   setStatus('Ready to match');
   console.log('Videochat ready. User ID:', userId);
