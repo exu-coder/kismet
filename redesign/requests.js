@@ -19,7 +19,7 @@
     return;
   }
 
-  const userId = window.kismetIdentity?.getAnonId() || localStorage.getItem('kismet.anonId');
+  const userId = window.kismetUser?.id;
   const load = (key, fallback) => {
     try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
     catch { return fallback; }
@@ -75,33 +75,17 @@
   };
 
   const acceptRequest = async (request, button) => {
-    if (!request?.from_user_id || button.disabled) return;
-    button.disabled = true;
+    if (button.disabled) return;
     const row = button.closest('.ka-row');
-    const buttons = row ? row.querySelectorAll('button') : [];
+    const buttons = row ? row.querySelectorAll('button') : [button];
     buttons.forEach(item => { item.disabled = true; });
-
-    // Upserts are idempotent, so retrying after a partial failure won't duplicate friends.
-    const { error: friendError } = await sb.from('friends').upsert([
-      { user_id: userId, friend_id: request.from_user_id, friend_name: request.from_name || 'Anonymous', friend_code: request.from_code || '' },
-      { user_id: request.from_user_id, friend_id: userId, friend_name: myName, friend_code: myCode },
-    ], { onConflict: 'user_id,friend_id' });
-
-    if (friendError) {
-      console.error('Could not create friend links:', friendError);
+    const { data, error } = await sb.rpc('kismet_respond_friend_request', {
+      p_request_id: request.id, p_status: 'accepted'
+    });
+    if (error || data !== true) {
+      console.error('Could not accept friend request:', error);
       notify('Could not accept this request. Please try again.');
       buttons.forEach(item => { item.disabled = false; });
-      return;
-    }
-
-    const { data, error } = await sb.from('friend_requests').update({ status: 'accepted' })
-      .eq('id', request.id).eq('to_user_id', userId).eq('status', 'pending').select('id').maybeSingle();
-
-    if (error || !data) {
-      console.error('Could not mark request accepted:', error);
-      notify('Friend link saved, but request status could not be updated. Refresh and retry.');
-      buttons.forEach(item => { item.disabled = false; });
-      await loadRequests();
       return;
     }
     request.status = 'accepted';
@@ -111,9 +95,10 @@
   const rejectRequest = async (request, button) => {
     if (button.disabled) return;
     button.disabled = true;
-    const { data, error } = await sb.from('friend_requests').update({ status: 'rejected' })
-      .eq('id', request.id).eq('to_user_id', userId).eq('status', 'pending').select('id').maybeSingle();
-    if (error || !data) {
+    const { data, error } = await sb.rpc('kismet_respond_friend_request', {
+      p_request_id: request.id, p_status: 'rejected'
+    });
+    if (error || data !== true) {
       console.error('Could not reject friend request:', error);
       notify('Could not reject this request. Please refresh and try again.');
       button.disabled = false;

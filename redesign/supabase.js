@@ -9,19 +9,7 @@ const requireClient = () => {
   return dbClient;
 };
 
-const ensureAnonId = () => {
-  let id = localStorage.getItem('kismet.anonId');
-  if (!id) {
-    const bytes = new Uint8Array(12);
-    if (window.crypto?.getRandomValues) window.crypto.getRandomValues(bytes);
-    else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
-    id = 'user_' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-    localStorage.setItem('kismet.anonId', id);
-  }
-  return id;
-};
-
-window.kismetIdentity = { getAnonId: ensureAnonId };
+window.kismetIdentity = { getAnonId: () => window.kismetUser?.id || null };
 
 const loadSdk = () => new Promise((resolve, reject) => {
   if (window.supabase?.createClient) return resolve();
@@ -45,14 +33,33 @@ const loadSdk = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-const loadSupabase = async () => {
-  if (dbClient) return dbClient;
-  await loadSdk();
-  if (!dbClient) {
-    dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    window.kismetSupabase = dbClient;
-  }
-  return dbClient;
+let initPromise = null;
+const loadSupabase = () => {
+  if (dbClient && window.kismetUser) return Promise.resolve(dbClient);
+  if (initPromise) return initPromise;
+  initPromise = (async () => {
+    await loadSdk();
+    if (!dbClient) {
+      dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
+      });
+      window.kismetSupabase = dbClient;
+    }
+    const { data: { session }, error } = await dbClient.auth.getSession();
+    if (error) throw error;
+    if (!session?.user) {
+      const { data, error: signInError } = await dbClient.auth.signInAnonymously();
+      if (signInError) throw new Error(/anonymous/i.test(signInError.message)
+        ? 'Anonymous sign-in is not enabled for Kismet. Enable it in Supabase Authentication → Sign In / Providers.'
+        : signInError.message);
+      if (!data.user) throw new Error('Could not create a secure anonymous session.');
+      window.kismetUser = data.user;
+    } else window.kismetUser = session.user;
+    const { data: current } = await dbClient.auth.getSession();
+    if (current.session?.access_token) dbClient.realtime.setAuth(current.session.access_token);
+    return dbClient;
+  })().catch(error => { initPromise = null; throw error; });
+  return initPromise;
 };
 
 const auth = {
@@ -69,7 +76,13 @@ const auth = {
     return { data, error };
   },
   async signOut() {
-    const { error } = await requireClient().auth.signOut();
+    const client = requireClient();
+    const { error } = await client.auth.signOut();
+    if (!error) {
+      const { data, error: anonError } = await client.auth.signInAnonymously();
+      if (anonError) throw anonError;
+      window.kismetUser = data.user;
+    }
     return { error };
   },
   async getUser() {
@@ -98,8 +111,8 @@ const profiles = {
     return { data, error };
   },
   async findByCode(code) {
-    const { data, error } = await requireClient().from('profiles').select('*').eq('friend_code', code).single();
-    return { data, error };
+    const { data, error } = await requireClient().rpc('kismet_find_profile_by_code', { p_friend_code: code });
+    return { data: Array.isArray(data) ? data[0] || null : data, error };
   }
 };
 
@@ -121,20 +134,16 @@ const requests = {
     const { data, error } = await requireClient().from('friend_requests').select('*').eq('to_user_id', userId).eq('status', 'pending');
     return { data, error };
   },
-  async send(fromUserId, toUserId, fromName, fromCode) {
-    const { data, error } = await requireClient().from('friend_requests').upsert({
-      from_user_id: fromUserId, to_user_id: toUserId, from_name: fromName, from_code: fromCode, status: 'pending'
-    }, { onConflict: 'from_user_id,to_user_id' });
+  async send(_fromUserId, toUserId) {
+    const { data, error } = await requireClient().rpc('kismet_send_friend_request', { p_to_user_id: toUserId });
     return { data, error };
   },
-  async accept(requestId, recipientId) {
-    const { data, error } = await requireClient().from('friend_requests').update({ status: 'accepted' })
-      .eq('id', requestId).eq('to_user_id', recipientId).eq('status', 'pending').select('id').maybeSingle();
+  async accept(requestId) {
+    const { data, error } = await requireClient().rpc('kismet_respond_friend_request', { p_request_id: requestId, p_status: 'accepted' });
     return { data, error };
   },
-  async reject(requestId, recipientId) {
-    const { data, error } = await requireClient().from('friend_requests').update({ status: 'rejected' })
-      .eq('id', requestId).eq('to_user_id', recipientId).eq('status', 'pending').select('id').maybeSingle();
+  async reject(requestId) {
+    const { data, error } = await requireClient().rpc('kismet_respond_friend_request', { p_request_id: requestId, p_status: 'rejected' });
     return { data, error };
   }
 };

@@ -11,13 +11,14 @@
   if (!profile.code) { profile.code = 'KS-' + Math.random().toString(36).slice(2,6).toUpperCase(); save('kismet.profile', profile); }
   if (!localStorage.getItem('kismet.mycode')) localStorage.setItem('kismet.mycode', profile.code);
 
-  // Stable anonymous identity shared across all pages (chat, requests, inbox)
-  const userId = window.kismetIdentity?.getAnonId() || localStorage.getItem('kismet.anonId') || (() => { const id = 'user_' + Math.random().toString(36).slice(2, 10); localStorage.setItem('kismet.anonId', id); return id; })();
+  const getUserId = () => window.kismetUser?.id || null;
 
   const refreshStats = async () => {
     const elFriends = document.getElementById('stat-friends');
     const elReqs = document.getElementById('stat-reqs');
     if (!elFriends || !elReqs || !window.kismetSupabase) return;
+    const userId = getUserId();
+    if (!userId) return;
     const sb = window.kismetSupabase;
     const [{ count: friendCount }, { count: reqCount }] = await Promise.all([
       sb.from('friends').select('*', { count: 'exact', head: true }).eq('user_id', userId),
@@ -104,6 +105,7 @@
     profile.country = document.getElementById('country-select').value;
     if (!save('kismet.profile', profile)) return;
     try {
+      await window.kismetReady;
       if (window.kismetDB && window.kismetUser) {
         const db = window.kismetDB;
         const user = window.kismetUser;
@@ -134,7 +136,7 @@
     if (user) {
       authLoggedOut.style.display = 'none';
       authLoggedIn.style.display = 'block';
-      authEmail.textContent = user.email || user.id;
+      authEmail.textContent = user.is_anonymous ? 'Anonymous session — no email required' : (user.email || user.id);
     } else {
       authLoggedOut.style.display = 'block';
       authLoggedIn.style.display = 'none';
@@ -177,7 +179,7 @@
     document.getElementById('btn-signout').addEventListener('click', async () => {
       const { error } = await db.auth.signOut();
       if (error) showToast('Sign out failed: ' + error.message);
-      else { showToast('Signed out'); updateAuthUI(null); }
+      else { showToast('Signed out — a fresh anonymous session is ready'); updateAuthUI(window.kismetUser); }
     });
   }).catch(error => {
     console.error('Supabase auth unavailable:', error);

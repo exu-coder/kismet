@@ -5,18 +5,17 @@
   const SUPABASE_URL = 'https://xjckwcvwssuadqkxgumt.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqY2t3Y3Z3c3N1YWRxa3hndW10Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0MzMyODUsImV4cCI6MjExMTAwOTI4NX0.tJQx1OTv49cci97EcWv82JjToif-CJvcvWDLsRV6ac0';
 
-  // ---- Wait for Supabase ----
-  const waitForSupabase = () => new Promise((resolve) => {
-    if (window.supabase) { resolve(); return; }
-    let attempts = 0;
-    const check = setInterval(() => {
-      if (window.supabase || attempts > 100) { clearInterval(check); resolve(); }
-      attempts++;
-    }, 100);
-  });
-  await waitForSupabase();
-  if (!window.supabase) return;
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // Use the shared client after its trusted anonymous session is ready.
+  let sb;
+  try { sb = await window.kismetReady; }
+  catch (error) {
+    console.error('Kismet secure session failed:', error);
+    const status = document.getElementById('status-text');
+    if (status) status.textContent = error.message || 'Secure session unavailable';
+    return;
+  }
+  const userId = window.kismetUser?.id;
+  if (!userId) return;
 
   // ---- State ----
   let localStream = null;
@@ -27,8 +26,6 @@
   let partnerId = null;
   let partnerName = 'Stranger';
   let isSearching = false;
-  const userId = window.kismetIdentity?.getAnonId() || localStorage.getItem('kismet.anonId') || ('user_' + Math.random().toString(36).slice(2, 10));
-  localStorage.setItem('kismet.anonId', userId);
   let revealed = false;
   let isInitiator = false;
   let readyInterval = null;
@@ -74,13 +71,13 @@
   const setStatus = (text) => { statusText.textContent = text; };
 
   // ---- Presence (online counter) ----
-  const lobbyChannel = sb.channel('lobby', { config: { presence: { key: userId } } });
+  const lobbyChannel = sb.channel('lobby', { config: { private: true, presence: { key: userId } } });
   lobbyChannel.on('presence', { event: 'sync' }, () => {
     if (onlineCount) onlineCount.textContent = Object.keys(lobbyChannel.presenceState()).length;
   });
   lobbyChannel.subscribe(async (status) => {
     if (status === 'SUBSCRIBED') {
-      await lobbyChannel.track({ user_id: userId, online_at: new Date().toISOString() });
+      await lobbyChannel.track({ online_at: new Date().toISOString() });
     }
   });
 
@@ -156,9 +153,10 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
+            Authorization: 'Bearer ' + (await sb.auth.getSession()).data.session.access_token,
+            apikey: SUPABASE_ANON_KEY,
           },
-          body: JSON.stringify({ userId, action: 'join' }),
+          body: JSON.stringify({ action: 'join' }),
         });
         if (!res.ok) throw new Error('Matchmaking returned HTTP ' + res.status);
         const data = await res.json();
@@ -327,7 +325,7 @@
     };
 
     const chan = sb.channel('signal_' + currentCallId, {
-      config: { broadcast: { self: false }, presence: { key: userId } }
+      config: { private: true, broadcast: { self: false }, presence: { key: userId } }
     });
     signalingChannel = chan;
 
@@ -495,17 +493,22 @@
     }, 15000);
   };
 
-  const leaveQueue = (keepalive = false) => {
-    const init = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ userId, action: 'leave' }),
-    };
-    if (keepalive) init.keepalive = true;
-    return fetch(SUPABASE_URL + '/functions/v1/matchmake', init).catch(() => {});
+  const leaveQueue = async (keepalive = false) => {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.access_token) return;
+      const init = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + session.access_token,
+          apikey: SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ action: 'leave' }),
+      };
+      if (keepalive) init.keepalive = true;
+      return await fetch(SUPABASE_URL + '/functions/v1/matchmake', init);
+    } catch (error) { console.warn('Could not leave matchmaking queue:', error); }
   };
 
   const endCall = (notify = true) => {
@@ -608,13 +611,7 @@
         return;
       }
 
-      const { error } = await sb.from('friend_requests').upsert({
-        from_user_id: userId,
-        to_user_id: fromId,
-        from_name: myName,
-        from_code: myCode,
-        status: 'pending',
-      }, { onConflict: 'from_user_id,to_user_id' });
+      const { error } = await sb.rpc('kismet_send_friend_request', { p_to_user_id: fromId });
 
       if (error) {
         console.error(error);

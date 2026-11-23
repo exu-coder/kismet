@@ -22,8 +22,8 @@
     return;
   }
 
-  const userId = window.kismetIdentity?.getAnonId() || localStorage.getItem('kismet.anonId');
-  const isSafeUserId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+  const userId = window.kismetUser?.id;
+  const isSafeUserId = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   if (!isSafeUserId(userId)) { list.textContent = 'Your session ID is invalid. Please reload the page.'; return; }
   let friends = [];
   let active = null;

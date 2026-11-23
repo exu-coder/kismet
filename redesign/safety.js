@@ -114,7 +114,7 @@
     button.textContent = 'Submitting…';
     try {
       const client = await window.kismetReady;
-      const reporterId = window.kismetIdentity?.getAnonId() || localStorage.getItem('kismet.anonId');
+      const reporterId = window.kismetUser?.id;
       if (!reporterId) throw new Error('Could not identify this session');
       const checked = document.querySelector('input[name="report-reason"]:checked');
       const reason = checked?.value || 'other';
