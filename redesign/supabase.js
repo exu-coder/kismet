@@ -141,12 +141,17 @@ const requests = {
 
 const messages = {
   async list(userId, friendId) {
+    const validId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+    if (!validId(userId) || !validId(friendId)) throw new Error('Invalid message participant ID');
     const { data, error } = await requireClient().from('messages').select('*')
       .or(`and(from_user_id.eq.${userId},to_user_id.eq.${friendId}),and(from_user_id.eq.${friendId},to_user_id.eq.${userId})`)
       .order('created_at', { ascending: true });
     return { data, error };
   },
   async send(fromUserId, toUserId, content) {
+    const validId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+    if (!validId(fromUserId) || !validId(toUserId)) throw new Error('Invalid message participant ID');
+    if (typeof content !== 'string' || !content.trim() || content.length > 4000) throw new Error('Message must contain 1–4,000 characters');
     const { data, error } = await requireClient().from('messages').insert({
       from_user_id: fromUserId, to_user_id: toUserId, content
     });
