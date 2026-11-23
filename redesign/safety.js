@@ -98,15 +98,6 @@
   });
 
   // ---- Reporting ----
-  const waitForSupabase = () => new Promise((resolve) => {
-    if (window.supabase) { resolve(); return; }
-    let n = 0;
-    const t = setInterval(() => {
-      if (window.supabase || n > 100) { clearInterval(t); resolve(); }
-      n++;
-    }, 100);
-  });
-
   reportBtn?.addEventListener('click', () => {
     if (!current.partnerId) return;
     if (reportModal) reportModal.hidden = false;
@@ -114,27 +105,41 @@
   $('report-cancel')?.addEventListener('click', () => {
     if (reportModal) reportModal.hidden = true;
   });
-  $('report-submit')?.addEventListener('click', async () => {
-    if (!current.partnerId) return;
-    const checked = document.querySelector('input[name="report-reason"]:checked');
-    const reason = checked?.value || 'other';
-    await waitForSupabase();
-    if (!window.supabase) return;
-    if (!sb) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const reporterId = localStorage.getItem('kismet.anonId') || '';
-    const { error } = await sb.from('reports').insert({
-      reporter_id: reporterId,
-      reported_id: current.partnerId,
-      reason,
-      call_id: current.callId,
-    });
-    if (reportModal) reportModal.hidden = true;
-    if (error) {
-      console.error(error);
-      window.dispatchEvent(new Event('kismet:report-failed'));
-      return;
+  $('report-submit')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    if (!current.partnerId || button.disabled) return;
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = 'Submitting…';
+    try {
+      const client = await window.kismetReady;
+      const reporterId = window.kismetIdentity?.getAnonId() || localStorage.getItem('kismet.anonId');
+      if (!reporterId) throw new Error('Could not identify this session');
+      const checked = document.querySelector('input[name="report-reason"]:checked');
+      const reason = checked?.value || 'other';
+      const reportTarget = { ...current };
+      const { error } = await client.from('reports').insert({
+        reporter_id: reporterId,
+        reported_id: reportTarget.partnerId,
+        reason,
+        call_id: reportTarget.callId,
+      });
+      if (error) throw error;
+      if (reportModal) reportModal.hidden = true;
+      window.dispatchEvent(new Event('kismet:report'));
+    } catch (error) {
+      console.error('Report submission failed:', error);
+      const toast = $('vc-toast');
+      if (toast) {
+        toast.textContent = 'Could not submit report — please try again';
+        toast.style.opacity = '1';
+        clearTimeout(toast._t);
+        toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+      }
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
     }
-    window.dispatchEvent(new Event('kismet:report'));
   });
 
   // Surface a failed report through the existing toast element
