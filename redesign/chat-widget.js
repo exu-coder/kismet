@@ -165,7 +165,7 @@
       el.innerHTML = `<div><div class="ka-name">${escapeHTML(r.name)}</div><div class="ka-sub">${escapeHTML(r.code)}</div></div>
         <div style="display:flex;gap:.3rem">
           <button class="ka-btn" data-act="accept" data-id="${escapeHTML(r.id)}">Accept</button>
-          <button class="ka-btn danger" data-act="reject" data-id="${r.id}">Reject</button>
+          <button class="ka-btn danger" data-act="reject" data-id="${escapeHTML(r.id)}">Reject</button>
         </div>`;
       el.querySelector('[data-act="accept"]').addEventListener('click', () => acceptRequest(r.id));
       el.querySelector('[data-act="reject"]').addEventListener('click', () => rejectRequest(r.id));
