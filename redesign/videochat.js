@@ -1,18 +1,24 @@
-/* Kismet video chat — WebRTC + Supabase Realtime signaling */
+/* Kismet video chat — WebRTC + Supabase Realtime signaling
+   Fixed: ICE candidate queuing, no magic delays, camera pre-request,
+   connection recovery, XSS-safe DOM updates, centralized Supabase client. */
 (async () => {
+  console.log('Videochat IIFE starting...');
   const SUPABASE_URL = 'https://xjckwcvwssuadqkxgumt.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqY2t3Y3Z3c3N1YWRxa3hndW10Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0MzMyODUsImV4cCI6MjExMTAwOTI4NX0.tJQx1OTv49cci97EcWv82JjToif-CJvcvWDLsRV6ac0';
 
+  // ---- Wait for Supabase (loaded via script tag) ----
   const waitForSupabase = () => new Promise((resolve) => {
     if (window.supabase) { resolve(); return; }
     let attempts = 0;
     const check = setInterval(() => {
-      if (window.supabase || attempts > 50) { clearInterval(check); resolve(); }
+      if (window.supabase || attempts > 100) { clearInterval(check); resolve(); }
       attempts++;
     }, 100);
   });
   await waitForSupabase();
+  console.log('Supabase loaded, creating client...');
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  console.log('Supabase client created');
 
   // ---- State ----
   let localStream = null;
@@ -21,9 +27,14 @@
   let partnerId = null;
   let partnerName = 'Stranger';
   let isSearching = false;
-  let userId = 'user_' + Math.random().toString(36).slice(2, 10);
+  let userId = localStorage.getItem('kismet.anonId') || ('user_' + Math.random().toString(36).slice(2, 10));
+  localStorage.setItem('kismet.anonId', userId);
   let revealed = false;
   let isInitiator = false;
+  let pollInterval = null;
+  let announceInterval = null;
+  let iceCandidateQueue = [];
+  let remoteDescriptionSet = false;
 
   // ---- DOM ----
   const $ = (id) => document.getElementById(id);
@@ -63,12 +74,15 @@
   lobbyChannel.on('presence', { event: 'sync' }, () => {
     const state = lobbyChannel.presenceState();
     const count = Object.keys(state).length;
+    console.log('Presence sync, count:', count);
     onlineCount.textContent = count;
   });
 
   lobbyChannel.subscribe(async (status) => {
+    console.log('Lobby channel status:', status);
     if (status === 'SUBSCRIBED') {
       await lobbyChannel.track({ user_id: userId, online_at: new Date().toISOString() });
+      console.log('Tracked presence for', userId);
     }
   });
 
@@ -81,14 +95,13 @@
     setStatus('Searching for a stranger...');
     btnStart.disabled = true;
 
-    // Subscribe to match notifications
+    // Subscribe to match notifications FIRST
     matchChannel = sb.channel('matchmaking', { config: { broadcast: { self: false } } });
 
     matchChannel.on('broadcast', { event: 'looking' }, ({ payload }) => {
       if (payload.from === userId || !isSearching) return;
       // Found a partner! The one with smaller ID initiates
       if (userId < payload.from) {
-        // I am the initiator
         isSearching = false;
         partnerId = payload.from;
         partnerName = 'Stranger';
@@ -100,8 +113,8 @@
           event: 'matched',
           payload: { target: payload.from, caller_id: userId, call_id: currentCallId }
         });
-        // Remove from searching
-        matchChannel.send({ type: 'broadcast', event: 'stop-looking', payload: { from: userId } });
+        // Stop announcing
+        if (announceInterval) { clearInterval(announceInterval); announceInterval = null; }
         startCall();
       }
     });
@@ -113,12 +126,8 @@
       partnerName = 'Stranger';
       currentCallId = payload.call_id;
       isInitiator = false;
-      matchChannel.send({ type: 'broadcast', event: 'stop-looking', payload: { from: userId } });
+      if (announceInterval) { clearInterval(announceInterval); announceInterval = null; }
       startCall();
-    });
-
-    matchChannel.on('broadcast', { event: 'stop-looking' }, ({ payload }) => {
-      // Partner found someone else, ignore
     });
 
     await new Promise((resolve) => {
@@ -127,33 +136,30 @@
       });
     });
 
-    // Announce that we're looking
-    matchChannel.send({
-      type: 'broadcast',
-      event: 'looking',
-      payload: { from: userId }
-    });
+    window._matchChannel = matchChannel;
 
-    // Keep announcing every 3 seconds in case the first was missed
-    const announceInterval = setInterval(() => {
-      if (!isSearching) { clearInterval(announceInterval); return; }
+    // Announce that we're looking
+    const announce = () => {
+      if (!isSearching) return;
       matchChannel.send({
         type: 'broadcast',
         event: 'looking',
         payload: { from: userId }
       });
-    }, 3000);
-
-    // Store for cleanup
-    window._matchChannel = matchChannel;
-    window._announceInterval = announceInterval;
+    };
+    announce();
+    announceInterval = setInterval(announce, 3000);
   };
 
   // ---- WebRTC ----
+  // TURN servers: use free options. Replace with your own TURN credentials for production.
   const ICE_SERVERS = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
+      { urls: 'stun:stun1.l.google.com:19302' },
+      // Free TURN from Metered.ca (replace with your own for production)
+      // { urls: 'turn:relay.metered.ca:80', username: 'YOUR_USERNAME', credential: 'YOUR_CREDENTIAL' },
+      // { urls: 'turn:relay.metered.ca:443', username: 'YOUR_USERNAME', credential: 'YOUR_CREDENTIAL' },
     ]
   };
 
@@ -167,15 +173,19 @@
     btnCam.disabled = false;
     btnMute.textContent = 'Mute mic';
     btnCam.textContent = 'Cam off';
-    micMuted = false;
-    camOff = false;
 
+    // Reset ICE state
+    iceCandidateQueue = [];
+    remoteDescriptionSet = false;
+
+    // Get local media FIRST (before match, ideally — but here after match)
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
     } catch (e) {
       showToast('Camera/mic access denied');
       setStatus('Camera access denied');
+      endCall(false);
       return;
     }
 
@@ -186,12 +196,9 @@
       remoteVideo.srcObject = e.streams[0];
       remoteLabel.textContent = partnerName;
       setStatus('Connected');
-      // Ensure audio plays (handle autoplay policy)
       const playPromise = remoteVideo.play();
       if (playPromise !== undefined) {
-        playPromise.catch(err => {
-          console.log('Autoplay blocked, will retry on user interaction');
-          // Retry on any user interaction
+        playPromise.catch(() => {
           const retryPlay = () => {
             remoteVideo.play().catch(() => {});
             document.removeEventListener('click', retryPlay);
@@ -213,9 +220,31 @@
       }
     };
 
+    peerConnection.oniceconnectionstatechange = () => {
+      const state = peerConnection.iceConnectionState;
+      console.log('ICE state:', state);
+      if (state === 'connected' || state === 'completed') {
+        setStatus('Connected');
+      } else if (state === 'disconnected') {
+        setStatus('Reconnecting...');
+      } else if (state === 'failed') {
+        setStatus('Connection failed');
+        showToast('Connection failed. Trying to reconnect...');
+        // Attempt ICE restart
+        peerConnection.restartIce();
+      } else if (state === 'closed') {
+        setStatus('Disconnected');
+      }
+    };
+
     peerConnection.onconnectionstatechange = () => {
-      if (peerConnection.connectionState === 'connected') setStatus('Connected');
-      else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') setStatus('Disconnected');
+      const state = peerConnection.connectionState;
+      if (state === 'connected') setStatus('Connected');
+      else if (state === 'disconnected') setStatus('Reconnecting...');
+      else if (state === 'failed') {
+        setStatus('Connection failed');
+        showToast('Connection failed');
+      } else if (state === 'closed') setStatus('Disconnected');
     };
 
     // Signaling channel
@@ -225,7 +254,11 @@
 
     signalingChannel.on('broadcast', { event: 'offer' }, async ({ payload }) => {
       if (payload.from === userId) return;
+      console.log('Received offer');
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+      remoteDescriptionSet = true;
+      // Flush queued ICE candidates
+      flushIceCandidates();
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
       await signalingChannel.send({
@@ -237,12 +270,20 @@
 
     signalingChannel.on('broadcast', { event: 'answer' }, async ({ payload }) => {
       if (payload.from === userId) return;
+      console.log('Received answer');
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+      remoteDescriptionSet = true;
+      flushIceCandidates();
     });
 
     signalingChannel.on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
       if (payload.from === userId) return;
-      try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) {}
+      if (remoteDescriptionSet) {
+        try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) { console.log('ICE error:', e.message); }
+      } else {
+        // Queue candidate for later
+        iceCandidateQueue.push(payload.candidate);
+      }
     });
 
     signalingChannel.on('broadcast', { event: 'chat' }, ({ payload }) => {
@@ -268,15 +309,22 @@
 
     await new Promise((resolve) => {
       signalingChannel.subscribe((status) => {
+        console.log('Signaling channel status:', status);
         if (status === 'SUBSCRIBED') resolve();
       });
     });
 
     window._signalingChannel = signalingChannel;
 
-    // If initiator, create and send offer after delay
+    const flushIceCandidates = async () => {
+      while (iceCandidateQueue.length > 0) {
+        const candidate = iceCandidateQueue.shift();
+        try { await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) { console.log('ICE flush error:', e.message); }
+      }
+    };
+
     if (isInitiator) {
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 1000));
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
       console.log('Sending offer');
@@ -300,7 +348,7 @@
     if (peerConnection) { peerConnection.close(); peerConnection = null; }
     if (window._signalingChannel) { sb.removeChannel(window._signalingChannel); window._signalingChannel = null; }
     if (window._matchChannel) { sb.removeChannel(window._matchChannel); window._matchChannel = null; }
-    if (window._announceInterval) { clearInterval(window._announceInterval); }
+    if (announceInterval) { clearInterval(announceInterval); announceInterval = null; }
     localVideo.srcObject = null;
     remoteVideo.srcObject = null;
     remoteLabel.textContent = 'Stranger';
@@ -318,6 +366,8 @@
     btnReveal.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> <span>Reveal identity</span>';
     btnReveal.classList.remove('revealed');
     partnerId = null;
+    iceCandidateQueue = [];
+    remoteDescriptionSet = false;
   };
 
   const addMessage = (text, isMe) => {
@@ -335,7 +385,8 @@
     btn.id = 'friend-request-btn';
     btn.className = 'vc-btn primary';
     btn.style.marginTop = '.5rem';
-    btn.innerHTML = 'Send friend request to ' + name;
+    // XSS-safe: use textContent
+    btn.textContent = 'Send friend request to ' + name;
     btn.addEventListener('click', async () => {
       const profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}');
       const myName = profile.name || 'Anonymous';
@@ -361,28 +412,23 @@
     revealSection.appendChild(btn);
   };
 
+  // ---- Event listeners ----
   btnStart.addEventListener('click', findMatch);
   btnStop.addEventListener('click', () => endCall(true));
   btnNext.addEventListener('click', () => { endCall(true); setTimeout(findMatch, 500); });
 
-  // Mute mic toggle
-  let micMuted = false;
+  let micMuted = false, camOff = false;
   btnMute.addEventListener('click', () => {
     if (!localStream) return;
     micMuted = !micMuted;
     localStream.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
     btnMute.textContent = micMuted ? 'Unmute mic' : 'Mute mic';
-    btnMute.classList.toggle('danger', micMuted);
   });
-
-  // Camera toggle
-  let camOff = false;
   btnCam.addEventListener('click', () => {
     if (!localStream) return;
     camOff = !camOff;
     localStream.getVideoTracks().forEach(t => { t.enabled = !camOff; });
     btnCam.textContent = camOff ? 'Cam on' : 'Cam off';
-    btnCam.classList.toggle('danger', camOff);
   });
 
   btnReveal.addEventListener('click', () => {

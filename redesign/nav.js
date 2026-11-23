@@ -48,4 +48,3 @@
   `;
   document.head.appendChild(st);
 })();
-EOF
