@@ -90,7 +90,7 @@
   // both file inputs
   ['photo-input', 'photo-input2'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.addEventListener('change', (e) => handlePhoto(e.target.files[0]));
+    if (el) el.addEventListener('change', (e) => { const file = e.target.files[0]; handlePhoto(file); e.target.value = ''; });
   });
 
   document.getElementById('remove-photo').addEventListener('click', () => {
@@ -102,8 +102,6 @@
   document.getElementById('save-btn').addEventListener('click', async () => {
     profile.name = document.getElementById('name-input').value.trim() || 'Anonymous';
     profile.country = document.getElementById('country-select').value;
-    save('kismet.profile', profile);
-
     if (!save('kismet.profile', profile)) return;
     try {
       if (window.kismetDB && window.kismetUser) {
