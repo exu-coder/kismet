@@ -1,7 +1,7 @@
 /* Profile page logic */
 (() => {
   const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-  const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+  const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (error) { console.error('Could not save profile locally:', error); showToast('Storage is full. Choose a smaller photo.'); return false; } };
 
   const countries = [
     'Afghanistan','Albania','Algeria','Argentina','Australia','Austria','Bangladesh','Belgium','Bolivia','Brazil','Canada','Chile','China','Colombia','Costa Rica','Cuba','Czech Republic','Denmark','Dominican Republic','Ecuador','Egypt','El Salvador','Finland','France','Germany','Greece','Guatemala','Honduras','Hungary','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Japan','Jordan','Kenya','Malaysia','Mexico','Morocco','Netherlands','New Zealand','Nicaragua','Nigeria','Norway','Pakistan','Panama','Paraguay','Peru','Philippines','Poland','Portugal','Romania','Russia','Saudi Arabia','South Africa','South Korea','Spain','Sweden','Switzerland','Thailand','Turkey','Ukraine','United Kingdom','United States','Uruguay','Venezuela','Vietnam'
@@ -31,6 +31,7 @@
   };
 
   const sel = document.getElementById('country-select');
+  if (!sel) return;
   countries.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c; opt.textContent = c;
@@ -51,15 +52,37 @@
   };
   showPhoto(profile.photo);
 
-  const handlePhoto = (file) => {
+  const handlePhoto = async (file) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      profile.photo = ev.target.result;
-      showPhoto(profile.photo);
-      save('kismet.profile', profile);
-    };
-    reader.readAsDataURL(file);
+    if (!file.type.startsWith('image/')) { showToast('Please choose an image file.'); return; }
+    if (file.size > 10 * 1024 * 1024) { showToast('Photo must be 10 MB or smaller.'); return; }
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Could not read image'));
+        reader.onload = () => {
+          const image = new Image();
+          image.onerror = () => reject(new Error('Invalid image file'));
+          image.onload = () => {
+            const scale = Math.min(1, 512 / Math.max(image.naturalWidth, image.naturalHeight));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+            canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+            canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/webp', 0.82));
+          };
+          image.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+      const previous = profile.photo;
+      profile.photo = dataUrl;
+      if (!save('kismet.profile', profile)) { profile.photo = previous; return; }
+      showPhoto(dataUrl);
+    } catch (error) {
+      console.error('Photo processing failed:', error);
+      showToast('Could not process this photo. Try another image.');
+    }
   };
 
   // photo wrap click triggers file input
@@ -75,6 +98,7 @@
 
   document.getElementById('remove-photo').addEventListener('click', () => {
     profile.photo = null;
+    save('kismet.profile', profile);
     showPhoto(null);
   });
 
@@ -83,20 +107,27 @@
     profile.country = document.getElementById('country-select').value;
     save('kismet.profile', profile);
 
-    // Sync to Supabase if authenticated
-    if (window.kismetDB && window.kismetUser) {
-      const db = window.kismetDB;
-      const user = window.kismetUser;
-      const existing = await db.profiles.get(user.id);
-      if (existing.data) {
-        await db.profiles.update(user.id, { name: profile.name, country: profile.country, photo_url: profile.photo });
-      } else {
-        await db.profiles.create(user.id, profile.name, profile.code, profile.country, profile.photo);
+    if (!save('kismet.profile', profile)) return;
+    try {
+      if (window.kismetDB && window.kismetUser) {
+        const db = window.kismetDB;
+        const user = window.kismetUser;
+        const { error } = await db.supabase.from('profiles').upsert({
+          user_id: user.id,
+          name: profile.name,
+          friend_code: profile.code,
+          country: profile.country,
+          photo_url: profile.photo,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+        if (error) throw error;
       }
+      await refreshStats();
+      showToast('Profile saved successfully!');
+    } catch (error) {
+      console.error('Profile sync failed:', error);
+      showToast('Saved on this device, but account sync failed.');
     }
-
-    refreshStats();
-    showToast('Profile saved successfully!');
   });
 
   // ---- Auth handling ----
@@ -115,32 +146,31 @@
     }
   };
 
-  // Wait for Supabase to load
-  const waitForSupabase = () => new Promise((resolve) => {
-    if (window.kismetSupabase) { resolve(); return; }
-    const check = setInterval(() => {
-      if (window.kismetSupabase) { clearInterval(check); resolve(); }
-    }, 200);
-  });
-
-  waitForSupabase().then(() => {
+  // Auth UI waits for the shared client and fails gracefully instead of polling forever.
+  window.kismetReady.then(() => {
     const db = window.kismetDB;
-    db.auth.getUser().then(user => updateAuthUI(user));
-    db.auth.onAuthChange((event, session) => updateAuthUI(session?.user));
+    db.auth.getUser().then(updateAuthUI).catch(error => {
+      console.error('Could not restore signed-in user:', error);
+      updateAuthUI(null);
+    });
+    db.auth.onAuthChange((_event, session) => updateAuthUI(session?.user || null));
 
     document.getElementById('btn-signin').addEventListener('click', async () => {
-      const email = document.getElementById('auth-email').value;
+      const email = document.getElementById('auth-email').value.trim();
       const password = document.getElementById('auth-password').value;
+      if (!email || !password) { showToast('Enter your email and password.'); return; }
       const { data, error } = await db.auth.signIn(email, password);
       if (error) showToast('Sign in failed: ' + error.message);
       else { showToast('Signed in!'); updateAuthUI(data.user); }
     });
 
     document.getElementById('btn-signup').addEventListener('click', async () => {
-      const email = document.getElementById('auth-email').value;
+      const email = document.getElementById('auth-email').value.trim();
       const password = document.getElementById('auth-password').value;
+      if (!email || password.length < 8) { showToast('Enter an email and a password with at least 8 characters.'); return; }
       const { data, error } = await db.auth.signUp(email, password);
       if (error) showToast('Sign up failed: ' + error.message);
+      else if (data.session) { showToast('Account created!'); updateAuthUI(data.user); }
       else showToast('Check your email to confirm your account!');
     });
 
@@ -154,6 +184,10 @@
       if (error) showToast('Sign out failed: ' + error.message);
       else { showToast('Signed out'); updateAuthUI(null); }
     });
+  }).catch(error => {
+    console.error('Supabase auth unavailable:', error);
+    showToast('Account features are unavailable. Reload to retry.');
+    updateAuthUI(null);
   });
 
   // stats on load (wait for Supabase client)
