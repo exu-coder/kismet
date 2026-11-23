@@ -37,4 +37,4 @@ enabled = true
 file_size_limit = "50MiB"
 
 [functions.matchmake]
-verify_jwt = false
+verify_jwt = true
