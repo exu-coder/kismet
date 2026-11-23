@@ -35,6 +35,8 @@
   const btnStart = $('btn-start');
   const btnStop = $('btn-stop');
   const btnNext = $('btn-next');
+  const btnMute = $('btn-mute');
+  const btnCam = $('btn-cam');
   const revealSection = $('reveal-section');
   const btnReveal = $('btn-reveal');
   const revealStatus = $('reveal-status');
@@ -161,6 +163,12 @@
     chatSection.style.display = 'flex';
     btnStop.disabled = false;
     btnNext.disabled = false;
+    btnMute.disabled = false;
+    btnCam.disabled = false;
+    btnMute.textContent = 'Mute mic';
+    btnCam.textContent = 'Cam off';
+    micMuted = false;
+    camOff = false;
 
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -178,6 +186,21 @@
       remoteVideo.srcObject = e.streams[0];
       remoteLabel.textContent = partnerName;
       setStatus('Connected');
+      // Ensure audio plays (handle autoplay policy)
+      const playPromise = remoteVideo.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          console.log('Autoplay blocked, will retry on user interaction');
+          // Retry on any user interaction
+          const retryPlay = () => {
+            remoteVideo.play().catch(() => {});
+            document.removeEventListener('click', retryPlay);
+            document.removeEventListener('touchstart', retryPlay);
+          };
+          document.addEventListener('click', retryPlay, { once: true });
+          document.addEventListener('touchstart', retryPlay, { once: true });
+        });
+      }
     };
 
     peerConnection.onicecandidate = (e) => {
@@ -285,6 +308,8 @@
     btnStart.disabled = false;
     btnStop.disabled = true;
     btnNext.disabled = true;
+    btnMute.disabled = true;
+    btnCam.disabled = true;
     revealSection.style.display = 'none';
     chatSection.style.display = 'none';
     const frBtn = document.getElementById('friend-request-btn');
@@ -339,6 +364,26 @@
   btnStart.addEventListener('click', findMatch);
   btnStop.addEventListener('click', () => endCall(true));
   btnNext.addEventListener('click', () => { endCall(true); setTimeout(findMatch, 500); });
+
+  // Mute mic toggle
+  let micMuted = false;
+  btnMute.addEventListener('click', () => {
+    if (!localStream) return;
+    micMuted = !micMuted;
+    localStream.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
+    btnMute.textContent = micMuted ? 'Unmute mic' : 'Mute mic';
+    btnMute.classList.toggle('danger', micMuted);
+  });
+
+  // Camera toggle
+  let camOff = false;
+  btnCam.addEventListener('click', () => {
+    if (!localStream) return;
+    camOff = !camOff;
+    localStream.getVideoTracks().forEach(t => { t.enabled = !camOff; });
+    btnCam.textContent = camOff ? 'Cam on' : 'Cam off';
+    btnCam.classList.toggle('danger', camOff);
+  });
 
   btnReveal.addEventListener('click', () => {
     if (revealed) { showToast('Already revealed'); return; }
