@@ -11,6 +11,25 @@
   if (!profile.code) { profile.code = 'KS-' + Math.random().toString(36).slice(2,6).toUpperCase(); save('kismet.profile', profile); }
   if (!localStorage.getItem('kismet.mycode')) localStorage.setItem('kismet.mycode', profile.code);
 
+  // Stable anonymous identity shared across all pages (chat, requests, inbox)
+  if (!localStorage.getItem('kismet.anonId')) {
+    localStorage.setItem('kismet.anonId', 'user_' + Math.random().toString(36).slice(2, 10));
+  }
+  const userId = localStorage.getItem('kismet.anonId');
+
+  const refreshStats = async () => {
+    const elFriends = document.getElementById('stat-friends');
+    const elReqs = document.getElementById('stat-reqs');
+    if (!elFriends || !elReqs || !window.kismetSupabase) return;
+    const sb = window.kismetSupabase;
+    const [{ count: friendCount }, { count: reqCount }] = await Promise.all([
+      sb.from('friends').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      sb.from('friend_requests').select('*', { count: 'exact', head: true }).eq('to_user_id', userId).eq('status', 'pending'),
+    ]);
+    elFriends.textContent = friendCount ?? 0;
+    elReqs.textContent = reqCount ?? 0;
+  };
+
   const sel = document.getElementById('country-select');
   countries.forEach(c => {
     const opt = document.createElement('option');
@@ -76,11 +95,7 @@
       }
     }
 
-    // update stats
-    const friends = load('kismet.friends', []);
-    const requests = load('kismet.requests', []);
-    document.getElementById('stat-friends').textContent = friends.filter(f => f.status !== 'rejected' && f.status !== 'pending').length;
-    document.getElementById('stat-reqs').textContent = requests.filter(r => r.status === 'pending').length;
+    refreshStats();
     showToast('Profile saved successfully!');
   });
 
@@ -141,10 +156,14 @@
     });
   });
 
-  // stats on load
-  const friends = load('kismet.friends', []);
-  const requests = load('kismet.requests', []);
-  document.getElementById('stat-friends').textContent = friends.filter(f => f.status !== 'rejected' && f.status !== 'pending').length;
-  document.getElementById('stat-reqs').textContent = requests.filter(r => r.status === 'pending').length;
+  // stats on load (wait for Supabase client)
+  const waitForClient = () => new Promise((resolve) => {
+    if (window.kismetSupabase) { resolve(); return; }
+    let n = 0;
+    const t = setInterval(() => {
+      if (window.kismetSupabase || n > 100) { clearInterval(t); resolve(); }
+      n++;
+    }, 100);
+  });
+  waitForClient().then(refreshStats);
 })();
-EOF

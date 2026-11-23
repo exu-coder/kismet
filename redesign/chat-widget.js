@@ -266,4 +266,3 @@
   // ---- init: auto-open panel on first visit? No, stay collapsed ----
   updateBadges();
 })();
-EOF

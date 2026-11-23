@@ -28,7 +28,8 @@
   localStorage.setItem('kismet.anonId', userId);
   let revealed = false;
   let isInitiator = false;
-  let announceInterval = null;
+  let readyInterval = null;
+  let offerSent = false;
   let connectionTimeout = null;
   let iceCandidateQueue = [];
   let remoteDescriptionSet = false;
@@ -95,8 +96,8 @@
     }
   };
 
-  // ---- Matchmaking ----
-  let matchChannel = null;
+  // ---- Matchmaking via Supabase Edge Function ----
+  let pollTimeout = null;
 
   const findMatch = async () => {
     if (isSearching) return;
@@ -108,55 +109,46 @@
     setStatus('Searching for a stranger...');
     btnStart.disabled = true;
 
-    matchChannel = sb.channel('matchmaking', { config: { broadcast: { self: false } } });
-
-    matchChannel.on('broadcast', { event: 'looking' }, ({ payload }) => {
-      if (payload.from === userId || !isSearching) return;
-      if (userId < payload.from) {
-        isSearching = false;
-        partnerId = payload.from;
-        partnerName = 'Stranger';
-        currentCallId = 'call_' + [userId, partnerId].sort().join('_');
-        isInitiator = true;
-        matchChannel.send({
-          type: 'broadcast',
-          event: 'matched',
-          payload: { target: payload.from, caller_id: userId, call_id: currentCallId }
-        });
-        if (announceInterval) { clearInterval(announceInterval); announceInterval = null; }
-        startCall();
-      }
-    });
-
-    matchChannel.on('broadcast', { event: 'matched' }, ({ payload }) => {
-      if (payload.target !== userId || !isSearching) return;
-      isSearching = false;
-      partnerId = payload.caller_id;
-      partnerName = 'Stranger';
-      currentCallId = payload.call_id;
-      isInitiator = false;
-      if (announceInterval) { clearInterval(announceInterval); announceInterval = null; }
-      startCall();
-    });
-
-    await new Promise((resolve) => {
-      matchChannel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') resolve();
-      });
-    });
-
-    window._matchChannel = matchChannel;
-
-    const announce = () => {
+    const poll = async () => {
       if (!isSearching) return;
-      matchChannel.send({
-        type: 'broadcast',
-        event: 'looking',
-        payload: { from: userId }
-      });
+
+      try {
+        const res = await fetch(
+          SUPABASE_URL + '/functions/v1/matchmake',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({ userId, action: 'join' }),
+          }
+        );
+        const data = await res.json();
+
+        if (data.status === 'matched') {
+          isSearching = false;
+          partnerId = data.partnerId;
+          partnerName = 'Stranger';
+          currentCallId = data.callId;
+          isInitiator = data.role === 'initiator';
+          if (pollTimeout) { clearTimeout(pollTimeout); pollTimeout = null; }
+          startCall();
+          return;
+        }
+
+        if (isSearching) {
+          pollTimeout = setTimeout(poll, 1500);
+        }
+      } catch (err) {
+        console.error('Match error', err);
+        if (isSearching) {
+          pollTimeout = setTimeout(poll, 2000);
+        }
+      }
     };
-    announce();
-    announceInterval = setInterval(announce, 2500);
+
+    poll();
   };
 
   // ---- WebRTC ----
@@ -279,10 +271,27 @@
       config: { broadcast: { self: false } }
     });
 
+    // Peer-ready handshake: both sides announce until a remote description arrives.
+    // This prevents the initiator's offer being broadcast before the responder subscribes.
+    signalingChannel.on('broadcast', { event: 'ready' }, async ({ payload }) => {
+      if (payload.from === userId) return;
+      if (!isInitiator || offerSent || !peerConnection) return;
+      offerSent = true;
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      console.log('Sending offer (peer ready)');
+      await signalingChannel.send({
+        type: 'broadcast',
+        event: 'offer',
+        payload: { offer, from: userId }
+      });
+    });
+
     signalingChannel.on('broadcast', { event: 'offer' }, async ({ payload }) => {
       if (payload.from === userId) return;
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
       remoteDescriptionSet = true;
+      if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
       await flushIceCandidates();
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
@@ -297,6 +306,7 @@
       if (payload.from === userId) return;
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
       remoteDescriptionSet = true;
+      if (readyInterval) { clearInterval(readyInterval); readyInterval = null; }
       await flushIceCandidates();
     });
 
@@ -322,7 +332,7 @@
       if (payload.from === userId) return;
       remoteLabel.textContent = payload.name;
       showToast(payload.name + ' revealed their identity!');
-      showFriendRequestButton(payload.name, payload.from);
+      showFriendRequestButton(payload.name, payload.from, payload.code);
     });
 
     signalingChannel.on('broadcast', { event: 'hangup' }, () => {
@@ -342,17 +352,18 @@
 
     window._signalingChannel = signalingChannel;
 
-    // No artificial delay — create offer as soon as channel is ready
-    if (isInitiator) {
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      console.log('Sending offer');
-      await signalingChannel.send({
-        type: 'broadcast',
-        event: 'offer',
-        payload: { offer, from: userId }
-      });
-    }
+    offerSent = false;
+    const announceReady = () => {
+      if (window._signalingChannel && peerConnection && !remoteDescriptionSet) {
+        signalingChannel.send({
+          type: 'broadcast',
+          event: 'ready',
+          payload: { from: userId }
+        });
+      }
+    };
+    announceReady();
+    readyInterval = setInterval(announceReady, 500);
 
     // Connection timeout — if not connected in 15s, auto Next
     connectionTimeout = setTimeout(() => {
@@ -369,6 +380,11 @@
       clearTimeout(connectionTimeout);
       connectionTimeout = null;
     }
+    if (readyInterval) {
+      clearInterval(readyInterval);
+      readyInterval = null;
+    }
+    offerSent = false;
     if (notify && window._signalingChannel) {
       window._signalingChannel.send({
         type: 'broadcast',
@@ -385,14 +401,19 @@
       sb.removeChannel(window._signalingChannel);
       window._signalingChannel = null;
     }
-    if (window._matchChannel) {
-      sb.removeChannel(window._matchChannel);
-      window._matchChannel = null;
+    if (pollTimeout) {
+      clearTimeout(pollTimeout);
+      pollTimeout = null;
     }
-    if (announceInterval) {
-      clearInterval(announceInterval);
-      announceInterval = null;
-    }
+    // Leave the match queue
+    fetch(SUPABASE_URL + '/functions/v1/matchmake', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ userId, action: 'leave' }),
+    }).catch(() => {});
 
     remoteVideo.srcObject = null;
     remoteLabel.textContent = 'Stranger';
@@ -423,36 +444,58 @@
     vcMessages.scrollTop = vcMessages.scrollHeight;
   };
 
-  const showFriendRequestButton = (name, fromId) => {
+  const showFriendRequestButton = (name, fromId, fromCode) => {
     let btn = document.getElementById('friend-request-btn');
     if (btn) btn.remove();
+
     btn = document.createElement('button');
     btn.id = 'friend-request-btn';
     btn.className = 'vc-btn primary';
     btn.style.marginTop = '.5rem';
     btn.textContent = 'Send friend request to ' + name;
+
     btn.addEventListener('click', async () => {
       const profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}');
       const myName = profile.name || 'Anonymous';
-      const myCode = profile.code || 'KS-XXXX';
-      await sb.from('friend_requests').insert({
+      const myCode = profile.code || localStorage.getItem('kismet.mycode') || 'KS-XXXX';
+
+      // 1. Ensure my profile exists
+      await sb.from('profiles').upsert({
+        user_id: userId,
+        name: myName,
+        friend_code: myCode,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+
+      // 2. Send friend request (upsert = idempotent)
+      const { error } = await sb.from('friend_requests').upsert({
         from_user_id: userId,
         to_user_id: fromId,
         from_name: myName,
         from_code: myCode,
-        status: 'pending'
-      });
+        status: 'pending',
+      }, { onConflict: 'from_user_id,to_user_id' });
+
+      if (error) {
+        console.error(error);
+        showToast('Could not send request');
+        return;
+      }
+
+      // 3. Notify via signaling
       if (window._signalingChannel) {
         window._signalingChannel.send({
           type: 'broadcast',
           event: 'friend-request',
-          payload: { from: userId, name: myName }
+          payload: { from: userId, name: myName, code: myCode },
         });
       }
+
       showToast('Friend request sent!');
       btn.disabled = true;
       btn.textContent = 'Request sent';
     });
+
     revealSection.appendChild(btn);
   };
 
@@ -476,11 +519,21 @@
     btnCam.textContent = camOff ? 'Cam on' : 'Cam off';
   });
 
-  btnReveal.addEventListener('click', () => {
+  btnReveal.addEventListener('click', async () => {
     if (revealed) { showToast('Already revealed'); return; }
     revealed = true;
     const profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}');
     const name = profile.name || 'Anonymous';
+    const code = profile.code || localStorage.getItem('kismet.mycode') || 'KS-XXXX';
+
+    // Save / update my profile
+    await sb.from('profiles').upsert({
+      user_id: userId,
+      name,
+      friend_code: code,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+
     btnReveal.classList.add('revealed');
     btnReveal.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> <span>Revealed</span>';
     revealStatus.textContent = 'Identity revealed!';
@@ -488,7 +541,7 @@
       window._signalingChannel.send({
         type: 'broadcast',
         event: 'reveal',
-        payload: { name, from: userId }
+        payload: { name, from: userId, code },
       });
     }
     showToast('You revealed your identity!');
@@ -513,7 +566,6 @@
     if (localStream) localStream.getTracks().forEach(t => t.stop());
     endCall(false);
     lobbyChannel.unsubscribe();
-    if (window._matchChannel) sb.removeChannel(window._matchChannel);
   });
 
   setStatus('Ready to match');
