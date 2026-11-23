@@ -18,6 +18,7 @@ This branch contains a source-level hardening pass for the editable `redesign/` 
 - Added guarded error handling around WebRTC offer/answer negotiation.
 - Made report submission use the shared Supabase client, show progress, and remain retryable after failure.
 - Escaped user-controlled profile, friend, request, and message text before legacy widget HTML interpolation.
+- Changed the old Supabase project deletion utility to dry-run by default, read its token from an environment variable, and require an explicit flag plus an exact interactive confirmation before deleting anything.
 
 ## Important limitations requiring backend access
 
