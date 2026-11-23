@@ -19,7 +19,7 @@
   const ACCENT2 = pick("--cyan-400", "#6fd3e7");
   const DIM = pick("--star-500", "#8e8aa2");
 
-  const ORB_COUNT = 28;
+  const ORB_COUNT = 14;
 
   function resize() {
     W = canvas.width = Math.max(1, innerWidth);
