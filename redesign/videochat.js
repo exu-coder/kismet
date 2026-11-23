@@ -218,10 +218,16 @@
 
   const sendHangup = async (chan) => {
     if (!chan) return;
+    let timer;
     try {
-      await Promise.race([chan.send({ type: 'broadcast', event: 'hangup', payload: { from: userId } }), new Promise(resolve => setTimeout(resolve, 1200))]);
+      await Promise.race([
+        chan.send({ type: 'broadcast', event: 'hangup', payload: { from: userId } }),
+        new Promise(resolve => { timer = setTimeout(resolve, 1200); }),
+      ]);
     } catch (e) {
       console.warn('hangup send failed', e);
+    } finally {
+      clearTimeout(timer);
     }
   };
 
