@@ -12,10 +12,7 @@
   if (!localStorage.getItem('kismet.mycode')) localStorage.setItem('kismet.mycode', profile.code);
 
   // Stable anonymous identity shared across all pages (chat, requests, inbox)
-  if (!localStorage.getItem('kismet.anonId')) {
-    localStorage.setItem('kismet.anonId', 'user_' + Math.random().toString(36).slice(2, 10));
-  }
-  const userId = localStorage.getItem('kismet.anonId');
+  const userId = window.kismetIdentity?.getAnonId() || localStorage.getItem('kismet.anonId') || (() => { const id = 'user_' + Math.random().toString(36).slice(2, 10); localStorage.setItem('kismet.anonId', id); return id; })();
 
   const refreshStats = async () => {
     const elFriends = document.getElementById('stat-friends');
