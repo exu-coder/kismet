@@ -10,7 +10,13 @@
     mycode: 'kismet.mycode',
   };
   const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-  const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+  const save = (k, v) => {
+    try { localStorage.setItem(k, JSON.stringify(v)); return true; }
+    catch (error) { console.error('Could not save Kismet widget data:', error); return false; }
+  };
+  const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
 
   // ---- state ----
   let profile = load(STORE.profile, { name: 'Anonymous', code: null });
@@ -84,7 +90,18 @@
   document.head.appendChild(st);
 
   const $ = (s) => host.querySelector(s);
-  const saveAll = () => { save(STORE.profile, profile); save(STORE.friends, friends); save(STORE.requests, requests); save(STORE.chats, chats); localStorage.setItem(STORE.reveal, reveal ? '1' : '0'); };
+  const saveAll = () => {
+    try {
+      save(STORE.profile, profile);
+      save(STORE.friends, friends);
+      save(STORE.requests, requests);
+      save(STORE.chats, chats);
+      localStorage.setItem(STORE.reveal, reveal ? '1' : '0');
+    } catch (error) {
+      console.error('Could not persist Kismet widget state:', error);
+      if (typeof window.showToast === 'function') window.showToast('Storage is full. Some changes may not be saved.');
+    }
+  };
 
   // ---- tabs ----
   const tabTitles = { match: 'Random match', requests: 'Friend requests', chat: 'Chat', profile: 'Profile' };
@@ -145,9 +162,9 @@
     pending.forEach(r => {
       const el = document.createElement('div');
       el.className = 'ka-row';
-      el.innerHTML = `<div><div class="ka-name">${r.name}</div><div class="ka-sub">${r.code}</div></div>
+      el.innerHTML = `<div><div class="ka-name">${escapeHTML(r.name)}</div><div class="ka-sub">${escapeHTML(r.code)}</div></div>
         <div style="display:flex;gap:.3rem">
-          <button class="ka-btn" data-act="accept" data-id="${r.id}">Accept</button>
+          <button class="ka-btn" data-act="accept" data-id="${escapeHTML(r.id)}">Accept</button>
           <button class="ka-btn danger" data-act="reject" data-id="${r.id}">Reject</button>
         </div>`;
       el.querySelector('[data-act="accept"]').addEventListener('click', () => acceptRequest(r.id));
@@ -178,7 +195,7 @@
         const last = msgs.length ? msgs[msgs.length-1].text : 'No messages yet';
         const el = document.createElement('div');
         el.className = 'ka-row';
-        el.innerHTML = `<div><div class="ka-name">${f.name}</div><div class="ka-sub">${last}</div></div><button class="ka-btn ghost" data-id="${f.id}">Open</button>`;
+        el.innerHTML = `<div><div class="ka-name">${escapeHTML(f.name)}</div><div class="ka-sub">${escapeHTML(last)}</div></div><button class="ka-btn ghost" data-id="${escapeHTML(f.id)}">Open</button>`;
         el.querySelector('button').addEventListener('click', () => { activeChat = f.id; render(); });
         body.appendChild(el);
       });
@@ -189,7 +206,7 @@
     const msgs = chats[f.id] || [];
     body.innerHTML = `
       <button class="ka-btn ghost" id="ka-back" style="align-self:flex-start;margin-bottom:.4rem">← Back</button>
-      <div class="ka-name" style="margin-bottom:.3rem">${f.name}</div>
+      <div class="ka-name" style="margin-bottom:.3rem">${escapeHTML(f.name)}</div>
       <div class="ka-msgs" id="ka-msgs"></div>
       <div class="ka-compose">
         <input class="ka-input" id="ka-msginput" placeholder="Type a message…" />
@@ -221,13 +238,13 @@
   const renderProfile = (body) => {
     body.innerHTML = `
       <div class="ka-card">
-        <div class="ka-profile-row"><span class="ka-profile-label">Name</span><span class="ka-profile-val">${profile.name}</span></div>
-        <div class="ka-profile-row"><span class="ka-profile-label">Friend code</span><span class="ka-profile-val">${profile.code}</span></div>
+        <div class="ka-profile-row"><span class="ka-profile-label">Name</span><span class="ka-profile-val">${escapeHTML(profile.name)}</span></div>
+        <div class="ka-profile-row"><span class="ka-profile-label">Friend code</span><span class="ka-profile-val">${escapeHTML(profile.code)}</span></div>
         <div class="ka-profile-row"><span class="ka-profile-label">Status</span><span class="ka-profile-val">${reveal ? 'Visible' : 'Anonymous'}</span></div>
         <div class="ka-profile-row"><span class="ka-profile-label">Friends</span><span class="ka-profile-val">${friends.filter(f=>f.status!=='rejected').length}</span></div>
         <div class="ka-profile-row"><span class="ka-profile-label">Pending requests</span><span class="ka-profile-val">${requests.filter(r=>r.status==='pending').length}</span></div>
       </div>
-      <div class="ka-code">${profile.code}</div>
+      <div class="ka-code">${escapeHTML(profile.code)}</div>
       <p class="ka-hint">Share this code with a stranger after revealing your identity. They enter it to add you as a friend.</p>
       <button class="ka-btn ghost" id="ka-rename">Change name</button>
       <button class="ka-btn ghost" id="ka-demo-req" style="margin-top:.3rem">Simulate incoming request (demo)</button>
