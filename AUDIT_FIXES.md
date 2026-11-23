@@ -22,7 +22,7 @@ This branch contains a source-level hardening pass for the editable `redesign/` 
 
 ## Important limitations requiring backend access
 
-The repository tree does not include Supabase migrations/schema, RLS policy definitions, or the `matchmake` Edge Function source. These cannot be safely repaired by changing browser JavaScript alone.
+The repository tree does not include the original Svelte source components (the `_app/immutable/` files are compiled output), Supabase migrations/schema, RLS policy definitions, or the `matchmake` Edge Function source. These cannot be safely repaired by changing browser JavaScript alone.
 
 Before production, verify or implement the following in Supabase:
 
