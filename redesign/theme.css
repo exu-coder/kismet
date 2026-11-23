@@ -129,7 +129,7 @@ canvas.svelte-14n7v75{display:none}
 .wordmark.wordmark{font-weight:700;letter-spacing:.01em;padding-right:0}
 .wordmark.wordmark em{font-style:italic;color:var(--violet-500);--neon-on:var(--violet-500);--neon-glow:transparent;--neon-deep:transparent}
 .mark-tube svg{display:none}
-.mark-tube::before{content:"";width:1.12em;height:1.12em;background:url(/redesign/mark.svg) center/contain no-repeat;image-rendering:pixelated}
+.mark-tube::before{content:"";width:1.12em;height:1.12em;background:url(/logo.png) center/contain no-repeat;image-rendering:pixelated}
 
 /* ---------- Hero: one orchestrated materialization ---------- */
 .hero h1{transform:none;font-weight:400;font-size:clamp(2rem,5vw,3.3rem);letter-spacing:0;line-height:1.22;max-width:26ch}
