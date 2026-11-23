@@ -1,10 +1,11 @@
 /* Kismet video chat — WebRTC + Supabase Realtime signaling
-   Fixed: ICE candidate queuing, connection recovery, camera pre-request,
-   TURN servers, connection timeout, no magic delays, matchmaking. */
+   Fixes: ICE candidate queuing, pre-request camera, no magic delays,
+   connection timeout, TURN-ready, better recovery & cleanup. */
 (async () => {
   const SUPABASE_URL = 'https://xjckwcvwssuadqkxgumt.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqY2t3Y3Z3c3N1YWRxa3hndW10Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0MzMyODUsImV4cCI6MjExMTAwOTI4NX0.tJQx1OTv49cci97EcWv82JjToif-CJvcvWDLsRV6ac0';
 
+  // ---- Wait for Supabase ----
   const waitForSupabase = () => new Promise((resolve) => {
     if (window.supabase) { resolve(); return; }
     let attempts = 0;
@@ -27,11 +28,12 @@
   localStorage.setItem('kismet.anonId', userId);
   let revealed = false;
   let isInitiator = false;
-  let pollInterval = null;
   let announceInterval = null;
+  let connectionTimeout = null;
   let iceCandidateQueue = [];
   let remoteDescriptionSet = false;
-  let connectionTimeout = null;
+  let micMuted = false;
+  let camOff = false;
 
   // ---- DOM ----
   const $ = (id) => document.getElementById(id);
@@ -63,51 +65,44 @@
 
   const setStatus = (text) => { statusText.textContent = text; };
 
-  // ---- Presence (online counter) ----
+  // ---- Presence ----
   const lobbyChannel = sb.channel('lobby', {
     config: { presence: { key: userId } }
   });
 
   lobbyChannel.on('presence', { event: 'sync' }, () => {
     const state = lobbyChannel.presenceState();
-    const count = Object.keys(state).length;
-    console.log('Presence sync, count:', count);
-    onlineCount.textContent = count;
+    onlineCount.textContent = Object.keys(state).length;
   });
 
   lobbyChannel.subscribe(async (status) => {
-    console.log('Lobby channel status:', status);
     if (status === 'SUBSCRIBED') {
       await lobbyChannel.track({ user_id: userId, online_at: new Date().toISOString() });
-      console.log('Tracked presence for', userId);
     }
   });
 
-  // ---- Camera pre-request ----
-  const requestCamera = async () => {
+  // ---- Pre-request camera ----
+  const ensureCamera = async () => {
+    if (localStream) return true;
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
       return true;
     } catch (e) {
-      showToast('Camera/mic access denied. Please allow to continue.');
+      showToast('Camera/mic access is required');
       setStatus('Camera access denied');
       return false;
     }
   };
 
-  // ---- Matchmaking via Realtime broadcast ----
+  // ---- Matchmaking ----
   let matchChannel = null;
 
   const findMatch = async () => {
     if (isSearching) return;
 
-    // Request camera FIRST
-    if (!localStream) {
-      setStatus('Requesting camera...');
-      const granted = await requestCamera();
-      if (!granted) return;
-    }
+    const ok = await ensureCamera();
+    if (!ok) return;
 
     isSearching = true;
     setStatus('Searching for a stranger...');
@@ -161,20 +156,31 @@
       });
     };
     announce();
-    announceInterval = setInterval(announce, 3000);
+    announceInterval = setInterval(announce, 2500);
   };
 
   // ---- WebRTC ----
-  // TURN servers — using free Metered.ca open relay for testing.
-  // For production, replace with your own TURN credentials.
+  // IMPORTANT: Add your real TURN credentials here (Metered, Cloudflare, Twilio, or self-hosted)
   const ICE_SERVERS = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
+      // Free TURN from Metered.ca (open relay)
       { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
       { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
       { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
     ]
+  };
+
+  const flushIceCandidates = async () => {
+    while (iceCandidateQueue.length > 0) {
+      const candidate = iceCandidateQueue.shift();
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.warn('ICE flush error:', e.message);
+      }
+    }
   };
 
   const startCall = async () => {
@@ -187,18 +193,15 @@
     btnCam.disabled = false;
     btnMute.textContent = 'Mute mic';
     btnCam.textContent = 'Cam off';
+    micMuted = false;
+    camOff = false;
 
     iceCandidateQueue = [];
     remoteDescriptionSet = false;
 
-    // If camera wasn't pre-requested, get it now
     if (!localStream) {
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        localVideo.srcObject = localStream;
-      } catch (e) {
-        showToast('Camera/mic access denied');
-        setStatus('Camera access denied');
+      const ok = await ensureCamera();
+      if (!ok) {
         endCall(false);
         return;
       }
@@ -211,7 +214,10 @@
       remoteVideo.srcObject = e.streams[0];
       remoteLabel.textContent = partnerName;
       setStatus('Connected');
-      clearTimeout(connectionTimeout);
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+        connectionTimeout = null;
+      }
       const playPromise = remoteVideo.play();
       if (playPromise !== undefined) {
         playPromise.catch(() => {
@@ -237,30 +243,38 @@
     };
 
     peerConnection.oniceconnectionstatechange = () => {
-      const state = peerConnection.iceConnectionState;
+      const state = peerConnection?.iceConnectionState;
+      console.log('ICE state:', state);
       if (state === 'connected' || state === 'completed') {
         setStatus('Connected');
-        clearTimeout(connectionTimeout);
+        if (connectionTimeout) {
+          clearTimeout(connectionTimeout);
+          connectionTimeout = null;
+        }
       } else if (state === 'disconnected') {
         setStatus('Reconnecting...');
       } else if (state === 'failed') {
         setStatus('Connection failed');
-        showToast('Connection failed. Trying next person...');
-        setTimeout(() => { if (peerConnection && peerConnection.iceConnectionState === 'failed') { endCall(true); } }, 2000);
+        showToast('Connection failed — trying ICE restart...');
+        try { peerConnection.restartIce(); } catch (_) {}
       }
     };
 
     peerConnection.onconnectionstatechange = () => {
-      const state = peerConnection.connectionState;
+      const state = peerConnection?.connectionState;
       if (state === 'connected') setStatus('Connected');
       else if (state === 'disconnected') setStatus('Reconnecting...');
       else if (state === 'failed') {
         setStatus('Connection failed');
-        showToast('Connection failed');
+        showToast('Could not connect. Hitting Next...');
+        setTimeout(() => {
+          endCall(true);
+          setTimeout(findMatch, 400);
+        }, 1200);
       }
     };
 
-    // Signaling channel
+    // Signaling
     const signalingChannel = sb.channel('signal_' + currentCallId, {
       config: { broadcast: { self: false } }
     });
@@ -269,7 +283,7 @@
       if (payload.from === userId) return;
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
       remoteDescriptionSet = true;
-      flushIceCandidates();
+      await flushIceCandidates();
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
       await signalingChannel.send({
@@ -283,13 +297,17 @@
       if (payload.from === userId) return;
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
       remoteDescriptionSet = true;
-      flushIceCandidates();
+      await flushIceCandidates();
     });
 
     signalingChannel.on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
       if (payload.from === userId) return;
       if (remoteDescriptionSet) {
-        try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) {}
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+        } catch (e) {
+          console.warn('ICE error:', e.message);
+        }
       } else {
         iceCandidateQueue.push(payload.candidate);
       }
@@ -324,24 +342,8 @@
 
     window._signalingChannel = signalingChannel;
 
-    const flushIceCandidates = async () => {
-      while (iceCandidateQueue.length > 0) {
-        const candidate = iceCandidateQueue.shift();
-        try { await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); } catch (e) {}
-      }
-    };
-
-    // Connection timeout: auto-retry after 15s
-    connectionTimeout = setTimeout(() => {
-      if (peerConnection && peerConnection.connectionState !== 'connected') {
-        showToast('Connection timed out. Trying next person...');
-        endCall(true);
-      }
-    }, 15000);
-
+    // No artificial delay — create offer as soon as channel is ready
     if (isInitiator) {
-      // Wait for partner to subscribe (small delay)
-      await new Promise(r => setTimeout(r, 500));
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
       console.log('Sending offer');
@@ -351,10 +353,22 @@
         payload: { offer, from: userId }
       });
     }
+
+    // Connection timeout — if not connected in 15s, auto Next
+    connectionTimeout = setTimeout(() => {
+      if (peerConnection && peerConnection.connectionState !== 'connected') {
+        showToast('Could not connect — trying next person...');
+        endCall(true);
+        setTimeout(findMatch, 500);
+      }
+    }, 15000);
   };
 
   const endCall = async (notify = true) => {
-    clearTimeout(connectionTimeout);
+    if (connectionTimeout) {
+      clearTimeout(connectionTimeout);
+      connectionTimeout = null;
+    }
     if (notify && window._signalingChannel) {
       window._signalingChannel.send({
         type: 'broadcast',
@@ -362,13 +376,24 @@
         payload: { from: userId }
       });
     }
-    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
-    if (peerConnection) { peerConnection.close(); peerConnection = null; }
-    if (window._signalingChannel) { sb.removeChannel(window._signalingChannel); window._signalingChannel = null; }
-    if (window._matchChannel) { sb.removeChannel(window._matchChannel); window._matchChannel = null; }
-    if (announceInterval) { clearInterval(announceInterval); announceInterval = null; }
-    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-    localVideo.srcObject = null;
+    if (peerConnection) {
+      peerConnection.close();
+      peerConnection = null;
+    }
+    // Keep localStream alive so Next is faster (stop only on full page leave)
+    if (window._signalingChannel) {
+      sb.removeChannel(window._signalingChannel);
+      window._signalingChannel = null;
+    }
+    if (window._matchChannel) {
+      sb.removeChannel(window._matchChannel);
+      window._matchChannel = null;
+    }
+    if (announceInterval) {
+      clearInterval(announceInterval);
+      announceInterval = null;
+    }
+
     remoteVideo.srcObject = null;
     remoteLabel.textContent = 'Stranger';
     setStatus('Ready to match');
@@ -433,9 +458,11 @@
 
   btnStart.addEventListener('click', findMatch);
   btnStop.addEventListener('click', () => endCall(true));
-  btnNext.addEventListener('click', () => { endCall(true); setTimeout(findMatch, 500); });
+  btnNext.addEventListener('click', () => {
+    endCall(true);
+    setTimeout(findMatch, 400);
+  });
 
-  let micMuted = false, camOff = false;
   btnMute.addEventListener('click', () => {
     if (!localStream) return;
     micMuted = !micMuted;
@@ -478,13 +505,17 @@
     });
     vcMsgInput.value = '';
   });
-  vcMsgInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') vcSend.click(); });
+  vcMsgInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') vcSend.click();
+  });
 
   window.addEventListener('beforeunload', () => {
+    if (localStream) localStream.getTracks().forEach(t => t.stop());
     endCall(false);
     lobbyChannel.unsubscribe();
     if (window._matchChannel) sb.removeChannel(window._matchChannel);
   });
 
   setStatus('Ready to match');
+  console.log('Videochat ready. User ID:', userId);
 })();
