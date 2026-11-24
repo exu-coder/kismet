@@ -9,8 +9,6 @@ const requireClient = () => {
   return dbClient;
 };
 
-window.kismetIdentity = { getAnonId: () => window.kismetUser?.id || null };
-
 const loadSdk = () => new Promise((resolve, reject) => {
   if (window.supabase?.createClient) return resolve();
   const script = document.createElement('script');
@@ -34,6 +32,23 @@ const loadSdk = () => new Promise((resolve, reject) => {
 });
 
 let initPromise = null;
+
+// Last-resort identity when the project has Anonymous Sign-Ins turned off.
+// The session function (service role, rate-limited) creates a throwaway guest
+// user and returns a normal session, so auth.uid() and RLS still apply.
+const createFallbackSession = async () => {
+  const res = await fetch(SUPABASE_URL + '/functions/v1/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+    body: '{}',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.access_token || !data.refresh_token) {
+    throw new Error(data.error || 'Could not create a secure session. Please reload.');
+  }
+  return { access_token: data.access_token, refresh_token: data.refresh_token };
+};
+
 const loadSupabase = () => {
   if (dbClient && window.kismetUser) return Promise.resolve(dbClient);
   if (initPromise) return initPromise;
@@ -49,73 +64,24 @@ const loadSupabase = () => {
     if (error) throw error;
     if (!session?.user) {
       const { data, error: signInError } = await dbClient.auth.signInAnonymously();
-      if (signInError) throw new Error(/anonymous/i.test(signInError.message)
-        ? 'Anonymous sign-in is not enabled for Kismet. Enable it in Supabase Authentication → Sign In / Providers.'
-        : signInError.message);
-      if (!data.user) throw new Error('Could not create a secure anonymous session.');
-      window.kismetUser = data.user;
+      if (signInError) {
+        if (!/anonymous/i.test(signInError.message)) throw new Error(signInError.message);
+        // Anonymous Sign-Ins are disabled on this project: use the fallback.
+        const fallback = await createFallbackSession();
+        const { data: established, error: sessionError } = await dbClient.auth.setSession(fallback);
+        if (sessionError) throw sessionError;
+        if (!established.user) throw new Error('Could not create a secure anonymous session.');
+        window.kismetUser = established.user;
+      } else {
+        if (!data.user) throw new Error('Could not create a secure anonymous session.');
+        window.kismetUser = data.user;
+      }
     } else window.kismetUser = session.user;
     const { data: current } = await dbClient.auth.getSession();
     if (current.session?.access_token) dbClient.realtime.setAuth(current.session.access_token);
     return dbClient;
   })().catch(error => { initPromise = null; throw error; });
   return initPromise;
-};
-
-const auth = {
-  async signUp(email, password) {
-    const client = requireClient();
-    const user = window.kismetUser;
-    if (user?.is_anonymous) {
-      if (user.email?.toLowerCase() === email.toLowerCase() && user.email_confirmed_at) {
-        const { data, error } = await client.auth.updateUser({ password });
-        return { data, error, linking: true, passwordSet: true };
-      }
-      const { data, error } = await client.auth.updateUser({ email });
-      return { data, error, linking: true, passwordSet: false };
-    }
-    const { data, error } = await client.auth.signUp({ email, password });
-    return { data, error };
-  },
-  async signIn(email, password) {
-    const client = requireClient();
-    if (window.kismetUser?.is_anonymous) {
-      const { data: profile } = await client.from('profiles').select('user_id')
-        .eq('user_id', window.kismetUser.id).maybeSingle();
-      if (profile) {
-        return { data: null, error: new Error('This device has a saved anonymous profile. Use Sign up to link an email to it instead of switching accounts.') };
-      }
-    }
-    const { data, error } = await client.auth.signInWithPassword({ email, password });
-    return { data, error };
-  },
-  async signInWithGitHub() {
-    const client = requireClient();
-    return window.kismetUser?.is_anonymous
-      ? await client.auth.linkIdentity({ provider: 'github' })
-      : await client.auth.signInWithOAuth({ provider: 'github' });
-  },
-  async signOut() {
-    const client = requireClient();
-    if (window.kismetUser?.is_anonymous) {
-      return { error: new Error('This is an anonymous session. Link an email or GitHub identity before signing out, or you will lose access to this profile.') };
-    }
-    const { error } = await client.auth.signOut();
-    if (!error) {
-      const { data, error: anonError } = await client.auth.signInAnonymously();
-      if (anonError) throw anonError;
-      window.kismetUser = data.user;
-    }
-    return { error };
-  },
-  async getUser() {
-    const { data, error } = await requireClient().auth.getUser();
-    if (error) throw error;
-    return data.user;
-  },
-  onAuthChange(callback) {
-    return requireClient().auth.onAuthStateChange(callback);
-  }
 };
 
 const profiles = {
@@ -192,14 +158,17 @@ const messages = {
 };
 
 window.kismetReady = loadSupabase().then(async client => {
-  window.kismetDB = { auth, profiles, friends, requests, messages, supabase: client };
-  try {
-    const { data: { user } } = await client.auth.getUser();
-    window.kismetUser = user || null;
-  } catch (error) {
-    console.warn('Could not restore Kismet auth session:', error);
-    window.kismetUser = null;
+  // Trust the session already established above. A transient getUser() failure
+  // must not wipe a valid anonymous identity (that silently disabled the app).
+  if (!window.kismetUser) {
+    try {
+      const { data: { session } } = await client.auth.getSession();
+      window.kismetUser = session?.user || null;
+    } catch (error) {
+      console.warn('Could not restore Kismet auth session:', error);
+    }
   }
+  window.kismetDB = { profiles, friends, requests, messages, supabase: client };
   client.auth.onAuthStateChange((_event, session) => {
     window.kismetUser = session?.user || null;
     document.dispatchEvent(new CustomEvent('kismet:auth', { detail: session?.user || null }));

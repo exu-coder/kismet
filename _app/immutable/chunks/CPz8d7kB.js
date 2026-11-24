@@ -175,7 +175,7 @@ and may not be copied, reproduced or used to identify another service.
 
 ## 11. Contact
 
-Questions about these terms: **legal@warpmeet.com**
+Questions about these terms: **github.com/exu-coder/kismet/issues**
 
 This address is not an appeals channel — see section 4.
 
@@ -307,6 +307,6 @@ If this policy changes, the "last updated" date at the top changes with it.
 
 ## 11. Contact
 
-Privacy questions or requests: **privacy@warpmeet.com**
+Privacy questions or requests: **github.com/exu-coder/kismet/issues**
 `}};function yt(e){let t=/^---\n([\s\S]*?)\n---\n?/.exec(e);if(!t)return{meta:{},body:e};let n={};for(let e of t[1].split(`
 `)){let t=e.indexOf(`:`);t!==-1&&(n[e.slice(0,t).trim()]=e.slice(t+1).trim())}return{meta:n,body:e.slice(t[0].length)}}function bt(e,t=`en`){let{meta:n,body:r}=yt(vt[e][t]);return{title:n.title??e,updated:n.updated??``,description:n.description??``,html:$.parse(r,{async:!1})}}export{v as n,bt as t};

@@ -19,8 +19,11 @@ port = 54323
 
 [auth]
 enabled = true
-site_url = "https://warpmeet.com"
-additional_redirect_urls = ["https://www.warpmeet.com", "https://3565a0f0.kismet-k2f.pages.dev", "http://localhost:3000"]
+# Anonymous-only product: every visitor gets a secure anonymous Supabase user.
+# The same switch must be enabled in Dashboard → Authentication → Sign In / Providers.
+enable_anonymous_sign_ins = true
+site_url = "https://kismet-k2f.pages.dev"
+additional_redirect_urls = ["https://kismet-k2f.pages.dev/**", "https://*.kismet-k2f.pages.dev/**", "http://localhost:3000/**"]
 jwt_expiry = 3600
 enable_signup = true
 
@@ -38,3 +41,7 @@ file_size_limit = "50MiB"
 
 [functions.matchmake]
 verify_jwt = true
+
+[functions.session]
+# The caller has no session yet. The function creates one, rate-limited.
+verify_jwt = false

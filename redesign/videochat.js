@@ -40,6 +40,15 @@
   let callGeneration = 0;   // incremented on every start/end to invalidate stale async work
   let callActive = false;
   let peerPresent = false;
+  // A leave request fired by endCall() must land before the next join(), or the
+  // late leave can delete the fresh queue row / clear a brand-new match.
+  let pendingLeave = Promise.resolve();
+
+  const MEDIA_LEAVE_TIMEOUT = 3000;
+  const waitForLeave = (promise) => Promise.race([
+    promise.catch(() => {}),
+    new Promise(resolve => setTimeout(resolve, MEDIA_LEAVE_TIMEOUT)),
+  ]);
 
   // ---- DOM ----
   const $ = (id) => document.getElementById(id);
@@ -144,16 +153,23 @@
     if (!isSearching) return; // Stop may have been pressed while the permission prompt was open.
     if (!ok) { await endCall(false); return; }
 
+    // Serialize with the previous call's leave so a late leave cannot delete
+    // the queue row this search is about to create.
+    await waitForLeave(pendingLeave);
+    if (!isSearching) return;
+
     setStatus('Searching for a stranger...');
 
     const poll = async () => {
       if (!isSearching) return;
       try {
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session?.access_token) throw new Error('Secure session is not available yet');
         const res = await fetch(SUPABASE_URL + '/functions/v1/matchmake', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + (await sb.auth.getSession()).data.session.access_token,
+            Authorization: 'Bearer ' + session.access_token,
             apikey: SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({ action: 'join' }),
@@ -493,7 +509,7 @@
     }, 15000);
   };
 
-  const leaveQueue = async (keepalive = false) => {
+  const leaveQueue = async (keepalive = false, callId = null) => {
     try {
       const { data: { session } } = await sb.auth.getSession();
       if (!session?.access_token) return;
@@ -504,7 +520,7 @@
           Authorization: 'Bearer ' + session.access_token,
           apikey: SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ action: 'leave' }),
+        body: JSON.stringify({ action: 'leave', callId }),
       };
       if (keepalive) init.keepalive = true;
       return await fetch(SUPABASE_URL + '/functions/v1/matchmake', init);
@@ -515,6 +531,11 @@
     callGeneration++;
     mediaRequestGeneration++; // invalidate any camera permission request still in flight
     callActive = false;
+
+    // Capture the call this teardown belongs to before clearing it. The leave
+    // is scoped to that call, so it can never delete or unmatch a newer search.
+    const callIdToLeave = currentCallId;
+    currentCallId = null;
 
     if (connectionTimeout) { clearTimeout(connectionTimeout); connectionTimeout = null; }
     if (peerGoneTimeout) { clearTimeout(peerGoneTimeout); peerGoneTimeout = null; }
@@ -536,7 +557,7 @@
     if (localVideo) localVideo.srcObject = null;
     if (peerConnection) { peerConnection.close(); peerConnection = null; }
     if (pollTimeout) { clearTimeout(pollTimeout); pollTimeout = null; }
-    leaveQueue();
+    pendingLeave = leaveQueue(false, callIdToLeave);
 
     if (chanToClose) {
       let cleaned = false;
@@ -567,6 +588,9 @@
     revealed = false;
     btnReveal.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> <span>Reveal identity</span>';
     btnReveal.classList.remove('revealed');
+    revealStatus.textContent = '';
+    vcMessages.replaceChildren();
+    vcMsgInput.value = '';
     partnerId = null;
     iceCandidateQueue = [];
     remoteDescriptionSet = false;
@@ -583,6 +607,33 @@
     vcMessages.scrollTop = vcMessages.scrollHeight;
   };
 
+  // Save the local profile without ever replacing a friend code already stored
+  // in the account. A different device must not silently rotate the code that
+  // existing friends and reveals already reference.
+  const syncProfile = async () => {
+    let profile = {};
+    try { profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}'); } catch (_) {}
+    const fallbackCode = profile.code || localStorage.getItem('kismet.mycode') ||
+      ('KS-' + userId.replace(/-/g, '').slice(0, 6).toUpperCase());
+    const { data: existing, error: readError } = await sb.from('profiles')
+      .select('name,friend_code').eq('user_id', userId).maybeSingle();
+    if (readError) console.warn('Could not read the saved profile:', readError);
+    const name = profile.name || existing?.name || 'Anonymous';
+    const code = existing?.friend_code || fallbackCode;
+    const { error } = await sb.from('profiles').upsert({
+      user_id: userId,
+      name,
+      friend_code: code,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+    if (error) throw error;
+    try {
+      localStorage.setItem('kismet.profile', JSON.stringify({ ...profile, name, code }));
+      localStorage.setItem('kismet.mycode', code);
+    } catch (_) {}
+    return { name, code };
+  };
+
   const showFriendRequestButton = (name, fromId, fromCode) => {
     let btn = document.getElementById('friend-request-btn');
     if (btn) btn.remove();
@@ -594,18 +645,10 @@
     btn.textContent = 'Send friend request to ' + name;
 
     btn.addEventListener('click', async () => {
-      let profile = {};
-      try { profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}'); } catch (_) {}
-      const myName = profile.name || 'Anonymous';
-      const myCode = profile.code || localStorage.getItem('kismet.mycode') || 'KS-XXXX';
-
-      const { error: profileError } = await sb.from('profiles').upsert({
-        user_id: userId,
-        name: myName,
-        friend_code: myCode,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-      if (profileError) {
+      let identity;
+      try {
+        identity = await syncProfile();
+      } catch (profileError) {
         console.error('Could not sync profile before friend request:', profileError);
         showToast('Could not save your profile. Try again.');
         return;
@@ -622,7 +665,7 @@
         signalingChannel.send({
           type: 'broadcast',
           event: 'friend-request',
-          payload: { from: userId, name: myName, code: myCode },
+          payload: { from: userId, name: identity.name, code: identity.code },
         }).catch(() => {});
       }
       showToast('Friend request sent!');
@@ -660,18 +703,10 @@
   btnReveal.addEventListener('click', async () => {
     if (revealed) { showToast('Already revealed'); return; }
     revealed = true;
-    let profile = {};
-    try { profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}'); } catch (_) {}
-    const name = profile.name || 'Anonymous';
-    const code = profile.code || localStorage.getItem('kismet.mycode') || 'KS-XXXX';
-
-    const { error: profileError } = await sb.from('profiles').upsert({
-      user_id: userId,
-      name,
-      friend_code: code,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
-    if (profileError) {
+    let identity;
+    try {
+      identity = await syncProfile();
+    } catch (profileError) {
       console.error('Could not save profile before reveal:', profileError);
       revealed = false;
       showToast('Could not reveal identity. Please try again.');
@@ -685,7 +720,7 @@
       signalingChannel.send({
         type: 'broadcast',
         event: 'reveal',
-        payload: { name, from: userId, code },
+        payload: { name: identity.name, from: userId, code: identity.code },
       }).catch(() => {});
     }
     showToast('You revealed your identity!');
@@ -746,7 +781,8 @@
         payload: { from: userId },
       }).catch(() => {});
     }
-    leaveQueue(true);
+    leaveQueue(true, currentCallId);
+    currentCallId = null;
     lobbyChannel.unsubscribe();
   };
   window.addEventListener('pagehide', handlePageExit);
@@ -757,5 +793,4 @@
   });
 
   setStatus('Ready to match');
-  console.log('Videochat ready. User ID:', userId);
 })();

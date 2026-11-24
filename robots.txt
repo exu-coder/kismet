@@ -1,0 +1,12 @@
+# Kismet
+User-agent: *
+Allow: /
+Disallow: /chat
+Disallow: /inbox
+Disallow: /requests
+Disallow: /profile
+Disallow: /supabase/
+Disallow: /redesign/
+Disallow: /_app/
+
+Sitemap: https://kismet-k2f.pages.dev/sitemap.xml

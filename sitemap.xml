@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://kismet-k2f.pages.dev/</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es/argentina</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es/chat</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es/chat-aleatorio</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/talk-to-strangers" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/chat-aleatorio" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/bate-papo-aleatorio" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/talk-to-strangers" />
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es/chile</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es/colombia</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es/ecuador</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es/hablar-con-desconocidos</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/random-video-chat" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/hablar-con-desconocidos" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/conversar-com-estranhos" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/random-video-chat" />
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es/mexico</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es/peru</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es/privacy</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/privacy" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/privacy" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/privacy" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/privacy" />
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/es/terms</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/terms" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/terms" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/terms" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/terms" />
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/privacy</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.3</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/privacy" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/privacy" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/privacy" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/privacy" />
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/pt</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/pt/bate-papo-aleatorio</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/talk-to-strangers" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/chat-aleatorio" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/bate-papo-aleatorio" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/talk-to-strangers" />
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/pt/brasil</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/pt/chat</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/pt/conversar-com-estranhos</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/random-video-chat" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/hablar-con-desconocidos" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/conversar-com-estranhos" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/random-video-chat" />
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/pt/privacy</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/privacy" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/privacy" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/privacy" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/privacy" />
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/pt/terms</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/terms" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/terms" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/terms" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/terms" />
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/random-video-chat</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/random-video-chat" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/hablar-con-desconocidos" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/conversar-com-estranhos" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/random-video-chat" />
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/talk-to-strangers</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/talk-to-strangers" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/chat-aleatorio" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/bate-papo-aleatorio" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/talk-to-strangers" />
+  </url>
+  <url>
+    <loc>https://kismet-k2f.pages.dev/terms</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.3</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://kismet-k2f.pages.dev/terms" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://kismet-k2f.pages.dev/es/terms" />
+    <xhtml:link rel="alternate" hreflang="pt" href="https://kismet-k2f.pages.dev/pt/terms" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://kismet-k2f.pages.dev/terms" />
+  </url>
+</urlset>

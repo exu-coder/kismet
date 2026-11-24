@@ -8,10 +8,20 @@
   ];
 
   let profile = load('kismet.profile', { name: 'Anonymous', code: null, photo: null, country: '' });
-  if (!profile.code) { profile.code = 'KS-' + Math.random().toString(36).slice(2,6).toUpperCase(); save('kismet.profile', profile); }
-  if (!localStorage.getItem('kismet.mycode')) localStorage.setItem('kismet.mycode', profile.code);
+  if (profile.code) localStorage.setItem('kismet.mycode', profile.code);
 
   const getUserId = () => window.kismetUser?.id || null;
+
+  // Stable friend code: deterministic per account, never random once an id is known.
+  const ensureCode = () => {
+    if (profile.code) return profile.code;
+    const id = getUserId();
+    if (!id) return null;
+    profile.code = 'KS-' + id.replace(/-/g, '').slice(0, 6).toUpperCase();
+    save('kismet.profile', profile);
+    localStorage.setItem('kismet.mycode', profile.code);
+    return profile.code;
+  };
 
   const refreshStats = async () => {
     const elFriends = document.getElementById('stat-friends');
@@ -38,7 +48,7 @@
   });
 
   document.getElementById('name-input').value = profile.name || '';
-  document.getElementById('code-display').textContent = profile.code;
+  document.getElementById('code-display').textContent = ensureCode() || '…';
   // identity is hidden by default; reveal happens per-call, not here
 
   const photoImg = document.getElementById('photo-img');
@@ -100,12 +110,58 @@
     showPhoto(null);
   });
 
+  // ---- Remote profile hydration ----
+  let hasRemoteProfile = false;
+  let hydratePromise = Promise.resolve();
+
+  const applyProfileToUI = () => {
+    document.getElementById('name-input').value = profile.name || '';
+    const sel = document.getElementById('country-select');
+    if (sel && profile.country && [...sel.options].some(opt => opt.value === profile.country)) {
+      sel.value = profile.country;
+    }
+    document.getElementById('code-display').textContent = profile.code || '…';
+    showPhoto(profile.photo);
+  };
+
+  const hydrateProfile = async () => {
+    const id = getUserId();
+    if (!id || !window.kismetSupabase) { ensureCode(); applyProfileToUI(); return; }
+    try {
+      const { data, error } = await window.kismetSupabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', id)
+        .maybeSingle();
+      if (error) throw error;
+      if (data) {
+        hasRemoteProfile = true;
+        if (data.name) profile.name = data.name;
+        if (data.friend_code) profile.code = data.friend_code;
+        if (data.country) profile.country = data.country;
+        // Never wipe a photo the user just picked locally with an empty DB value.
+        if (data.photo_url) profile.photo = data.photo_url;
+      }
+      ensureCode();
+      save('kismet.profile', profile);
+      if (profile.code) localStorage.setItem('kismet.mycode', profile.code);
+      applyProfileToUI();
+    } catch (error) {
+      console.warn('Could not load saved profile from the account:', error);
+      ensureCode();
+      applyProfileToUI();
+    }
+  };
+
   document.getElementById('save-btn').addEventListener('click', async () => {
     profile.name = document.getElementById('name-input').value.trim() || 'Anonymous';
     profile.country = document.getElementById('country-select').value;
+    if (!hasRemoteProfile) ensureCode();
     if (!save('kismet.profile', profile)) return;
     try {
       await window.kismetReady;
+      await hydratePromise;
+      if (!profile.code) ensureCode();
       if (window.kismetDB && window.kismetUser) {
         const db = window.kismetDB;
         const user = window.kismetUser;
@@ -118,6 +174,8 @@
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
         if (error) throw error;
+        localStorage.setItem('kismet.mycode', profile.code);
+        document.getElementById('code-display').textContent = profile.code;
       }
       await refreshStats();
       showToast('Profile saved successfully!');
@@ -127,69 +185,13 @@
     }
   });
 
-  // ---- Auth handling ----
-  const authLoggedOut = document.getElementById('auth-logged-out');
-  const authLoggedIn = document.getElementById('auth-logged-in');
-  const authEmail = document.getElementById('auth-user-email');
-
-  const updateAuthUI = (user) => {
-    if (user) {
-      authLoggedOut.style.display = 'none';
-      authLoggedIn.style.display = 'block';
-      authEmail.textContent = user.is_anonymous ? 'Anonymous session — no email required' : (user.email || user.id);
-    } else {
-      authLoggedOut.style.display = 'block';
-      authLoggedIn.style.display = 'none';
-    }
-  };
-
-  // Auth UI waits for the shared client and fails gracefully instead of polling forever.
-  window.kismetReady.then(() => {
-    const db = window.kismetDB;
-    db.auth.getUser().then(updateAuthUI).catch(error => {
-      console.error('Could not restore signed-in user:', error);
-      updateAuthUI(null);
-    });
-    db.auth.onAuthChange((_event, session) => updateAuthUI(session?.user || null));
-
-    document.getElementById('btn-signin').addEventListener('click', async () => {
-      const email = document.getElementById('auth-email').value.trim();
-      const password = document.getElementById('auth-password').value;
-      if (!email || !password) { showToast('Enter your email and password.'); return; }
-      const { data, error } = await db.auth.signIn(email, password);
-      if (error) showToast('Sign in failed: ' + error.message);
-      else { showToast('Signed in!'); updateAuthUI(data.user); }
-    });
-
-    document.getElementById('btn-signup').addEventListener('click', async () => {
-      const email = document.getElementById('auth-email').value.trim();
-      const password = document.getElementById('auth-password').value;
-      if (!email || password.length < 8) { showToast('Enter an email and a password with at least 8 characters.'); return; }
-      const { data, error } = await db.auth.signUp(email, password);
-      if (error) showToast('Sign up failed: ' + error.message);
-      else if (data.linking && data.passwordSet) showToast('Password set — your anonymous profile is now linked to your email.');
-      else if (data.linking) showToast('Verification email sent. Confirm it, then choose Sign up again to set your password.');
-      else if (data.session) { showToast('Account created!'); updateAuthUI(data.user); }
-      else showToast('Check your email to confirm your account!');
-    });
-
-    document.getElementById('btn-github').addEventListener('click', async () => {
-      const { error } = await db.auth.signInWithGitHub();
-      if (error) showToast('GitHub sign in failed: ' + error.message);
-    });
-
-    document.getElementById('btn-signout').addEventListener('click', async () => {
-      const { error } = await db.auth.signOut();
-      if (error) showToast('Sign out failed: ' + error.message);
-      else { showToast('Signed out — a fresh anonymous session is ready'); updateAuthUI(window.kismetUser); }
-    });
-  }).catch(error => {
-    console.error('Supabase auth unavailable:', error);
-    showToast('Account features are unavailable. Reload to retry.');
-    updateAuthUI(null);
+  // Load the saved profile first, then stats, once the anonymous session is ready.
+  hydratePromise = window.kismetReady.then(hydrateProfile).catch(error => {
+    console.warn('Profile sync unavailable until the secure session is ready:', error);
+    ensureCode();
+    applyProfileToUI();
   });
 
-  // Load stats only after the authenticated session is ready.
   window.kismetReady.then(refreshStats).catch(error => {
     console.warn('Profile stats unavailable until the secure session is ready:', error);
   });

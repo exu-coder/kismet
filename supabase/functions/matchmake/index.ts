@@ -20,6 +20,11 @@ Deno.serve(async (req) => {
     const payload = await req.json().catch(() => null);
     const action = payload?.action;
     if (action !== "join" && action !== "leave") return json({ error: "Invalid action" }, 400);
+    const callId = action === "leave" ? (payload?.callId ?? null) : null;
+    if (callId !== null && (typeof callId !== "string"
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(callId))) {
+      return json({ error: "Invalid call id" }, 400);
+    }
 
     const url = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -39,6 +44,7 @@ Deno.serve(async (req) => {
     const { data, error } = await adminClient.rpc("kismet_matchmake", {
       p_user_id: user.id,
       p_action: action,
+      p_call_id: callId,
     });
     if (error) {
       console.error("Matchmaking RPC failed:", error.message);

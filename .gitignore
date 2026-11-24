@@ -1,0 +1,10 @@
+# Build / deploy artifacts
+dist/
+.wrangler/
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+/tmp
