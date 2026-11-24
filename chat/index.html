@@ -17,7 +17,7 @@
   <script src="/redesign/videochat.js" defer></script>
   <script src="/redesign/safety.js" defer></script>
   <style>
-    .vc-container{max-width:900px;margin:0 auto;padding:1rem;display:flex;flex-direction:column;gap:1rem;min-height:calc(100vh - 8rem)}
+    .vc-container{max-width:900px;margin:0 auto;padding:1rem 1rem 2rem;display:flex;flex-direction:column;gap:1rem;min-height:calc(100vh - 10rem)}
     .vc-status{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:var(--color-bg-container,#0c101f);border:1px solid var(--color-border,#232b47);border-radius:8px}
     .vc-status-text{font-size:.9rem;color:var(--color-text-light,#b6b1c4)}
     .vc-online{display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--color-text,#efe8d6)}
@@ -27,7 +27,7 @@
     .vc-video-wrap{position:relative;background:#000;border-radius:8px;overflow:hidden;border:1px solid var(--color-border,#232b47)}
     .vc-video-wrap video{width:100%;height:100%;object-fit:cover;display:block}
     .vc-video-label{position:absolute;bottom:.5rem;left:.5rem;padding:.2rem .5rem;background:rgba(0,0,0,.6);color:#fff;font-size:.75rem;border-radius:4px}
-    .vc-controls{display:flex;justify-content:center;gap:.75rem;padding:1rem 0}
+    .vc-controls{display:flex;justify-content:center;gap:.5rem;padding:1rem 0;flex-wrap:wrap}
     .vc-btn{padding:.6rem 1.5rem;border:none;border-radius:8px;font:inherit;font-size:.9rem;font-weight:700;cursor:pointer;transition:transform .12s,filter .12s}
     .vc-btn:active{transform:scale(.95)}
     .vc-btn.primary{background:var(--gradient-brand,#f59e0b);color:var(--color-on-primary,#0c101f)}
@@ -49,13 +49,13 @@
     .vc-msg{padding:.3rem .6rem;border-radius:6px;font-size:.85rem;max-width:80%}
     .vc-msg.me{align-self:flex-end;background:var(--color-primary,#f59e0b);color:var(--color-on-primary,#0c101f)}
     .vc-msg.them{align-self:flex-start;background:var(--color-bg-raised,#151b30);color:var(--color-text,#efe8d6)}
-    .vc-compose{display:flex;gap:.4rem}
+    .vc-compose{display:flex;gap:.4rem;flex-wrap:wrap}.vc-compose input{min-width:0}
     .vc-compose input{flex:1;padding:.4rem .6rem;background:var(--color-bg-raised,#151b30);border:1px solid var(--color-border,#232b47);color:var(--color-text,#efe8d6);border-radius:6px;font:inherit;font-size:.85rem}
     .vc-reveal{padding:.75rem;background:var(--color-bg-container,#0c101f);border:1px solid var(--color-border,#232b47);border-radius:8px}
     .vc-reveal h3{margin:0 0 .4rem;font-size:.95rem;color:var(--color-text,#efe8d6)}
     .vc-reveal p{margin:0 0 .5rem;font-size:.8rem;color:var(--color-text-light,#b6b1c4)}
     .vc-reveal-btn{padding:.4rem .8rem;background:var(--gradient-brand,#f59e0b);color:var(--color-on-primary,#0c101f);border:none;border-radius:6px;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
-    @media (max-width:600px){.vc-videos{grid-template-columns:1fr}.vc-video-wrap{min-height:200px}}
+    @media (max-width:600px){.vc-videos{grid-template-columns:1fr}.vc-video-wrap{min-height:200px}.vc-controls{gap:.4rem}.vc-btn{padding:.5rem .9rem;font-size:.8rem}.vc-status{flex-wrap:wrap;gap:.4rem}}
   </style>
 </head>
 <body>
