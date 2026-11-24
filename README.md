@@ -29,6 +29,18 @@ no profile, no history — just whoever is in front of you, right now.
 - **Browser-native** — works on Android, iPhone and desktop with no install.
 - **Multilingual** — English, Spanish and Portuguese landing pages.
 
+## Verified implementation screenshots
+
+Code-verified UI implementation quality (local Playwright checks + manual flow review).
+
+| Mobile | Desktop |
+|---|---|
+| ![Mobile inbox list](docs/screenshots/chat-ui/mobile-inbox-list.png) | ![Desktop inbox list](docs/screenshots/chat-ui/desktop-inbox-list.png) |
+| ![Mobile chat](docs/screenshots/chat-ui/mobile-inbox-chat.png) | ![Desktop chat](docs/screenshots/chat-ui/desktop-inbox-chat.png) |
+| ![Mobile profile](docs/screenshots/chat-ui/mobile-inbox-profile.png) | ![Desktop profile](docs/screenshots/chat-ui/desktop-inbox-profile.png) |
+| ![Mobile emoji picker](docs/screenshots/chat-ui/mobile-inbox-emoji.png) | ![Desktop emoji picker](docs/screenshots/chat-ui/desktop-inbox-emoji.png) |
+| ![Mobile private call](docs/screenshots/chat-ui/mobile-inbox-call-live.png) | ![Desktop private call](docs/screenshots/chat-ui/desktop-inbox-call-live.png) |
+
 ## Tech stack
 
 - **Frontend:** static HTML/CSS/JS (SvelteKit pre-built output in `_app/`), no build step.
