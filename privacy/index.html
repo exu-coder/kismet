@@ -54,14 +54,14 @@
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents"><!--[--><!--[0--><!--[--><!--[0--><canvas aria-hidden="true" class="svelte-14n7v75"></canvas><!--]--> <div class="shell svelte-12qhfyh"><!--[0--><header class="svelte-12qhfyh"><a class="lockup svelte-12qhfyh" href="/" aria-label="Kismet home"><span class="lockup svelte-1wpm3vt" style="font-size: 1.35rem; --neon-strength: 0.7;"><span class="mark-tube neon-whole svelte-1wpm3vt"><!--$s1--><svg viewBox="0 0 100 100" role="presentation" aria-hidden="true" class="svelte-1y21oya" style="width: 1.12em; height: 1.12em;"><defs><linearGradient id="mark-warp-s1" gradientUnits="userSpaceOnUse" x1="8" y1="12" x2="92" y2="88"><stop offset="0" style="stop-color: color-mix(in srgb, #8f63f7 calc(var(--lit, 1) * 100%), var(--neon-off, #191430))"></stop><stop offset="1" style="stop-color: color-mix(in srgb, #e879f9 calc(var(--lit, 1) * 100%), var(--neon-off, #191430))"></stop></linearGradient></defs><rect x="6" y="17" width="88" height="66" rx="14" fill="url(#mark-warp-s1)"></rect><g fill="none" stroke="#140e22"><circle cx="46" cy="50" r="22" stroke-width="5.5"></circle><circle cx="49" cy="49" r="11.5" stroke-width="4.5"></circle></g><circle cx="51.5" cy="48.25" r="3.75" fill="#140e22"></circle></svg><!----></span> <span class="wordmark neon-sign svelte-1wpm3vt">Kis<em class="svelte-1wpm3vt">met</em></span></span><!----></a></header><!--]--> <main class="svelte-12qhfyh"><!--[--><article class="legal svelte-1wx29gl"><header class="svelte-1wx29gl"><h1 class="svelte-1wx29gl">Privacy Policy</h1> <!--[0--><p class="updated svelte-1wx29gl">Last updated September 1, 2026</p><!--]--></header> <div class="prose svelte-1wx29gl"><!----><h2>The short version</h2>
-<p>There is no account, so there is no profile, no email address and no password.
-Your conversations are not broadcast, sold or published. What we do keep is the
-minimum needed to run the matching, to keep the service usable, and to remove
-people who abuse it.</p>
+<p>There is no public account, email address or password. You can save an optional
+profile with a name, photo, country and random friend code after a live reveal.
+Your live conversations are not broadcast or sold. What we do keep is the minimum
+needed to run matching, to keep the service usable, and to remove people who abuse it.</p>
 <p>Everything below is the detail.</p>
 <h2>1. What we do not collect</h2>
 <ul>
-<li>No name, email address, phone number or password — there is no sign-up.</li>
+<li>No sign-up email, phone number or password. An optional display name, photo and country are stored only if you save a profile.</li>
 <li>No payment information — Kismet is free and takes no payments.</li>
 <li>No address book, no social accounts, no advertising profile.</li>
 <li>No transcript of what you say out loud.</li>
@@ -70,23 +70,20 @@ people who abuse it.</p>
 <p><strong>Technical information about your connection.</strong> Your IP address is used to
 derive an approximate country, to route the connection, and to apply rate limits
 and blocks. We do not store your IP address as part of a user profile.</p>
-<p><strong>A device signature.</strong> Your browser produces a fingerprint — a value derived
-from device and browser characteristics — which lets us enforce one session per
-device and keep out people who have been removed for abuse. It does not identify
-you as a person and is not shared with third parties for advertising.</p>
+<p><strong>A throwaway session identity.</strong> Because the service does not use public
+sign-up, a rate-limited helper creates a temporary guest session so matching and
+safety rules can apply to a browser session. It is not linked to your real identity.</p>
 <p><strong>Your settings.</strong> Language, country and interest preferences, chosen gender and
-who you want to meet, plus which camera and microphone you selected. These are
-stored in your browser and sent to our servers so the matching can use them.</p>
+who you want to meet, plus which camera and microphone you selected, are stored
+in your browser. Matching is currently random; these preferences are not sent to
+servers or used to select partners.</p>
 <p><strong>Reports and safety records.</strong> When someone is reported, we keep a record of
 the report, including evidence of what was reported, so a decision can be made
 and enforced.</p>
-<p><strong>Automated safety checks.</strong> To keep prohibited content off the service —
-particularly anything involving minors, or sexual content — images from video
-sessions may be analysed automatically. Material that a check flags may be
-retained and reviewed so that the account can be actioned and, where the law
-requires it, reported to the appropriate authorities. This is a safety
-mechanism, not a record of your conversations: material that is not flagged is
-not kept.</p>
+<p><strong>Moderation records.</strong> Reports are reviewed by moderators. We keep the
+report, its reason, the decision and any ban applied so enforcement can be
+consistent and appealed records can be found. We do not automatically analyse
+video frames or record calls.</p>
 <p><strong>Aggregate usage figures.</strong> Counts of users online, sessions, and countries, in
 a form that describes the service rather than any individual.</p>
 <h2>3. What happens to your video and messages</h2>
@@ -94,8 +91,9 @@ a form that describes the service rather than any individual.</p>
 using WebRTC wherever the network allows it. When a direct connection is not
 possible, traffic is relayed through a server so the call can still work; a relay
 passes the encrypted media through without storing it.</p>
-<p>We do not record conversations, and we do not keep your messages after a session
-ends.</p>
+<p>We do not record video or audio calls. Text messages sent after a mutual reveal
+and friend acceptance are stored so the conversation can continue; they are not
+published or sold.</p>
 <h2>4. Storage in your browser</h2>
 <p>Kismet stores a small amount of data in your browser: your settings, the record
 that you confirmed you are 18 or over, and a timestamp so a safety notice is not
@@ -103,25 +101,28 @@ shown to you repeatedly. Clearing your browser storage removes all of it.</p>
 <p>We do not use advertising or tracking cookies.</p>
 <h2>5. Third parties</h2>
 <ul>
-<li><strong>Cloudflare</strong> — hosting, delivery, and a bot check (Turnstile) that runs
-before a session starts. Cloudflare processes connection data on our behalf.</li>
+<li><strong>Cloudflare</strong> — hosting and delivery. Cloudflare processes connection
+data on our behalf.</li>
 <li><strong>Relay servers</strong> — used when a direct peer-to-peer connection cannot be
 established, as described in section 3.</li>
 </ul>
 <p>We do not sell personal information, and we do not share it for advertising.</p>
-<h2>6. No accounts or sign-in</h2>
-<p>Kismet has no accounts and no sign-in. We never ask for your email, password,
-phone number or a social login, and we do not receive profile information from
-Google or any other identity provider. Each browser is given a random,
-throwaway session identifier so the service can match you and keep your device's
-settings together; it is not linked to your real identity.</p>
+<h2>6. No public accounts or sign-in</h2>
+<p>Kismet has no public accounts or sign-in. We never ask visitors for an email,
+password, phone number or social login, and we do not receive profile information
+from Google or any other identity provider. Each browser is given a random,
+throwaway guest session so the service can match you and apply safety rules; it
+is not linked to your real identity. The private moderator dashboard is the only
+email/password area, and it is not part of the public chat experience.</p>
 <h2>7. How long we keep things</h2>
 <ul>
 <li>Settings: in your browser until you clear them.</li>
 <li>Connection and rate-limiting data: short-lived, and expired automatically.</li>
-<li>Reports and safety records, including anything a safety check flagged: kept
-for as long as needed to enforce a decision and to prevent the same person
-from returning.</li>
+<li>Saved profiles and friend codes: kept until you clear them or ask for removal.</li>
+<li>Messages with accepted friends: kept so the conversation can continue, and
+removed on request.</li>
+<li>Reports, moderation decisions and bans: kept for as long as needed to enforce
+a decision and prevent abuse.</li>
 <li>Aggregate figures: kept indefinitely, because they describe no one.</li>
 </ul>
 <h2>8. Your choices</h2>

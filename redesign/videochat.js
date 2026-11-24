@@ -613,8 +613,12 @@
   const syncProfile = async () => {
     let profile = {};
     try { profile = JSON.parse(localStorage.getItem('kismet.profile') || '{}'); } catch (_) {}
-    const fallbackCode = profile.code || localStorage.getItem('kismet.mycode') ||
-      ('KS-' + userId.replace(/-/g, '').slice(0, 6).toUpperCase());
+    const newCode = () => {
+      const bytes = new Uint8Array(6);
+      crypto.getRandomValues(bytes);
+      return 'KS-' + Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
+    };
+    const fallbackCode = profile.code || localStorage.getItem('kismet.mycode') || newCode();
     const { data: existing, error: readError } = await sb.from('profiles')
       .select('name,friend_code').eq('user_id', userId).maybeSingle();
     if (readError) console.warn('Could not read the saved profile:', readError);

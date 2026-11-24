@@ -6,6 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
@@ -13,6 +14,17 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 const PER_IP_LIMIT = 30;       // per rolling hour
 const GLOBAL_DAILY_LIMIT = 1000;
+
+// The last XFF hop is the address assigned by the edge proxy. A caller can
+// prepend hops, but cannot forge the final one, so do not trust
+// cf-connecting-ip or an arbitrary forwarded value supplied by the client.
+const trustedIp = (req: Request): string => {
+  const hops = (req.headers.get("x-forwarded-for") || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return (hops[hops.length - 1] || "unknown").slice(0, 64) || "unknown";
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -29,33 +41,22 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 
-  // Prefer the edge-provided client IP. Take the last forwarded hop so a
-  // caller-supplied X-Forwarded-For cannot bypass the per-IP limiter.
-  const forwarded = (req.headers.get("x-forwarded-for") || "")
-    .split(",").map(part => part.trim()).filter(Boolean);
-  const ip = (req.headers.get("cf-connecting-ip")
-    || forwarded[forwarded.length - 1]
-    || "unknown").slice(0, 64) || "unknown";
-  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
   try {
-    const [{ count: ipCount }, { count: dayCount }] = await Promise.all([
-      admin.from("session_grants").select("*", { count: "exact", head: true })
-        .eq("ip", ip).gte("created_at", hourAgo),
-      admin.from("session_grants").select("*", { count: "exact", head: true })
-        .gte("created_at", dayAgo),
-    ]);
-    if ((ipCount ?? 0) >= PER_IP_LIMIT || (dayCount ?? 0) >= GLOBAL_DAILY_LIMIT) {
+    // Atomic reservation: the SQL function locks, counts, inserts and returns
+    // one decision, so concurrent requests cannot both pass the limiter.
+    const { data: allowed, error: reserveError } = await admin.rpc("kismet_reserve_session", {
+      p_ip: trustedIp(req),
+      p_per_ip_limit: PER_IP_LIMIT,
+      p_global_daily_limit: GLOBAL_DAILY_LIMIT,
+    });
+    if (reserveError) {
+      console.error("Session reservation failed:", reserveError.message);
+      return json({ error: "Could not create a session" }, 500);
+    }
+    if (!allowed) {
       return json({ error: "Too many new sessions. Please try again later." }, 429);
     }
 
-    // Opportunistic cleanup keeps the table small without a cron job.
-    await admin.from("session_grants").delete().lt("created_at", dayAgo);
-    await admin.from("session_grants").insert({ ip });
-
-    // Throwaway guest credentials. The .invalid TLD can never receive mail,
-    // and email_confirm skips the mailer entirely.
     const email = `guest_${crypto.randomUUID()}@kismet.invalid`;
     const password = `${crypto.randomUUID()}${crypto.randomUUID()}`;
 

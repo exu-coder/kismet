@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kismet — admin</title>
+  <meta name="theme-color" content="#070a14" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="canonical" href="https://kissmeet.pages.dev.see.you.com/" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="icon" href="/favicon.png" type="image/png" />
+  <link rel="stylesheet" href="/redesign/theme.css">
+  <script src="/redesign/nav.js" defer></script>
+  <script src="/redesign/toast.js" defer></script>
+  <script src="/redesign/supabase.min.js" defer></script>
+  <script src="/redesign/supabase.js" defer></script>
+  <script src="/redesign/admin.js" defer></script>
+  <style id="admin-page-style">
+    .admin-page{--admin-bg:#070a14;--admin-card:#0c101f;--admin-raised:#151b30;--admin-border:#232b47;--admin-text:#efe8d6;--admin-muted:#b6b1c4;--admin-faint:#8e8aa2;--admin-primary:#f59e0b;--admin-ease:cubic-bezier(.23,1,.32,1);color:var(--admin-text);background:radial-gradient(900px 420px at 50% -10%,rgba(245,158,11,.08),transparent 70%),var(--admin-bg);min-height:100vh}
+    .admin-page *{box-sizing:border-box}
+    .admin-shell{max-width:72rem;margin:0 auto;padding:1.75rem 1.25rem 7rem}
+
+    /* Gate / access states */
+    .gate{min-height:70vh;display:grid;place-items:center;padding:2rem 1rem 8rem}
+    .gate-card{width:min(100%,28rem);padding:2rem 1.6rem;text-align:center;background:linear-gradient(150deg,rgba(245,158,11,.07),transparent 60%),var(--admin-card);border:1px solid var(--admin-border);border-radius:20px;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+    .gate-icon{width:52px;height:52px;margin:0 auto 1.1rem;border-radius:15px;display:grid;place-items:center;background:rgba(245,158,11,.12);color:var(--admin-primary)}
+    .gate-icon svg{width:25px;height:25px}
+    .gate h1{font-size:1.45rem;line-height:1.2;margin:0 0 .6rem;letter-spacing:-.02em}
+    .gate p{font-size:.86rem;line-height:1.65;color:var(--admin-muted);margin:0 0 1.3rem}
+    .gate-spinner{width:24px;height:24px;margin:0 auto 1.1rem;border:2px solid rgba(245,158,11,.22);border-top-color:var(--admin-primary);border-radius:50%;animation:admin-spin .8s linear infinite}
+    .gate-spinner[hidden],.admin-page [hidden]{display:none!important}
+
+    /* Shared controls */
+    .abtn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.5rem;padding:.5rem .9rem;border-radius:10px;border:1px solid var(--admin-border);background:var(--admin-raised);color:var(--admin-text);font:inherit;font-size:.78rem;font-weight:800;text-decoration:none;cursor:pointer;white-space:nowrap;transition:transform 140ms var(--admin-ease),background 140ms ease,border-color 140ms ease,color 140ms ease,box-shadow 140ms ease,filter 140ms ease}
+    .abtn:hover{border-color:rgba(245,158,11,.5);background:#1a2138}
+    .abtn:active{transform:scale(.96)}
+    .abtn:focus-visible{outline:2px solid var(--admin-primary);outline-offset:2px}
+    .abtn[disabled]{opacity:.5;cursor:not-allowed;transform:none}
+    .abtn.primary{background:linear-gradient(135deg,#f59e0b,#d97706);border-color:transparent;color:#140e22;box-shadow:0 8px 22px rgba(245,158,11,.2)}
+    .abtn.primary:hover{filter:brightness(1.06);box-shadow:0 10px 28px rgba(245,158,11,.32)}
+    .abtn.ghost{background:transparent;color:var(--admin-muted)}
+    .abtn.warn{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.35);color:#fbbf24}
+    .abtn.danger{background:rgba(251,113,133,.08);border-color:rgba(251,113,133,.35);color:#fda4af}
+    .abtn.small{min-height:2.25rem;padding:.35rem .7rem;font-size:.72rem;border-radius:8px}
+    .abtn .mini-spinner{width:13px;height:13px;border:2px solid rgba(0,0,0,.25);border-top-color:currentColor;border-radius:50%;animation:admin-spin .7s linear infinite}
+    @keyframes admin-spin{to{transform:rotate(360deg)}}
+
+    /* Header */
+    .admin-top{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem}
+    .page-eyebrow{display:inline-flex;align-items:center;gap:.45rem;font-size:.66rem;letter-spacing:.15em;text-transform:uppercase;color:var(--admin-primary);font-weight:800;margin-bottom:.4rem}
+    .page-eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.14)}
+    .page-title{font-size:clamp(1.8rem,4.4vw,2.5rem);line-height:1.1;letter-spacing:-.02em;margin:0 0 .4rem}
+    .page-sub{font-size:.86rem;line-height:1.55;color:var(--admin-muted);margin:0;max-width:36rem}
+    .top-actions{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+    .updated{font-size:.7rem;color:var(--admin-faint)}
+
+    /* Stats */
+    .stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.85rem;margin-bottom:1.4rem}
+    .stat{position:relative;overflow:hidden;padding:1.05rem 1.15rem;background:var(--admin-card);border:1px solid var(--admin-border);border-radius:14px}
+    .stat::after{content:"";position:absolute;right:-30px;top:-30px;width:100px;height:100px;border-radius:50%;background:radial-gradient(circle,rgba(245,158,11,.11),transparent 70%);pointer-events:none}
+    .stat-label{font-size:.66rem;text-transform:uppercase;letter-spacing:.1em;font-weight:800;color:var(--admin-faint);margin-bottom:.4rem}
+    .stat-value{font-size:1.85rem;line-height:1;font-weight:800;font-variant-numeric:tabular-nums}
+    .stat.accent .stat-value{color:var(--admin-primary)}
+    .stat.danger .stat-value{color:#fda4af}
+
+    /* Sections */
+    .admin-card{background:var(--admin-card);border:1px solid var(--admin-border);border-radius:16px;margin-bottom:1.25rem;overflow:hidden}
+    .card-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:1.05rem 1.25rem;border-bottom:1px solid var(--admin-border)}
+    .card-head h2{font-size:1rem;margin:0;font-weight:800;letter-spacing:-.01em}
+    .card-head p{margin:.2rem 0 0;font-size:.73rem;color:var(--admin-faint)}
+    .count-chip{flex:0 0 auto;min-width:2rem;padding:.25rem .55rem;border-radius:999px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.28);color:var(--admin-primary);font-size:.72rem;font-weight:800;text-align:center;font-variant-numeric:tabular-nums}
+    .card-body{padding:1.1rem 1.25rem}
+    .search-input{width:100%;max-width:18rem;min-height:2.25rem;padding:.4rem .7rem;border-radius:9px;border:1px solid var(--admin-border);background:var(--admin-raised);color:var(--admin-text);font:inherit;font-size:.78rem;transition:border-color 140ms ease,box-shadow 140ms ease}
+    .search-input::placeholder{color:var(--admin-faint)}
+    .search-input:focus{outline:none;border-color:var(--admin-primary);box-shadow:0 0 0 3px rgba(245,158,11,.14)}
+    .search-input:focus-visible{outline:2px solid var(--admin-primary);outline-offset:1px}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+    /* Report queue */
+    .report-list{display:grid;gap:.85rem}
+    .report{padding:1rem;background:var(--admin-raised);border:1px solid var(--admin-border);border-radius:13px}
+    .report-top{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap}
+    .report-id{font-family:var(--font-mono,monospace);font-size:.72rem;font-weight:800;color:var(--admin-primary)}
+    .time{font-size:.7rem;color:var(--admin-faint)}
+    .people{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:.55rem;margin:.9rem 0}
+    .people-arrow{color:var(--admin-faint);font-size:1rem}
+    .person{display:flex;align-items:center;gap:.55rem;min-width:0}
+    .person img,.cell-user img,.avatar-fallback{width:34px;height:34px;flex:0 0 auto;border-radius:50%;object-fit:cover;background:#222a40}
+    .avatar-fallback{display:grid;place-items:center;font-size:.85rem;font-weight:800;color:var(--admin-primary);background:rgba(245,158,11,.12)}
+    .person-text{min-width:0}
+    .person-role{display:block;font-size:.6rem;text-transform:uppercase;letter-spacing:.09em;color:var(--admin-faint);font-weight:800}
+    .person-name{display:block;font-size:.83rem;font-weight:800;overflow-wrap:anywhere}
+    .person-code{display:block;font-family:var(--font-mono,monospace);font-size:.7rem;color:var(--admin-primary);overflow-wrap:anywhere}
+    .reason{padding:.65rem .8rem;border-left:2px solid var(--admin-primary);border-radius:0 9px 9px 0;background:rgba(255,255,255,.035)}
+    .reason-label{display:block;font-size:.6rem;text-transform:uppercase;letter-spacing:.09em;font-weight:800;color:var(--admin-faint);margin-bottom:.25rem}
+    .reason p{margin:0;font-size:.8rem;line-height:1.5;overflow-wrap:anywhere}
+    .meta{margin-top:.6rem;font-size:.68rem;color:var(--admin-faint)}
+    .meta code{font-family:var(--font-mono,monospace)}
+    .report-actions{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.9rem}
+
+    /* Tables */
+    .table-wrap{overflow-x:auto}
+    .data-table{width:100%;border-collapse:collapse;font-size:.78rem}
+    .data-table th{text-align:left;padding:.55rem .7rem;font-size:.63rem;letter-spacing:.09em;text-transform:uppercase;color:var(--admin-faint);border-bottom:1px solid var(--admin-border);white-space:nowrap}
+    .data-table td{padding:.75rem .7rem;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:middle}
+    .data-table tbody tr:last-child td{border-bottom:0}
+    .data-table tbody tr:hover{background:rgba(255,255,255,.02)}
+    .cell-user{display:flex;align-items:center;gap:.55rem;min-width:0}
+    .cell-user .person-name{font-size:.8rem}
+    .uid{display:block;max-width:10rem;font-family:var(--font-mono,monospace);font-size:.64rem;color:var(--admin-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cell-reason{max-width:18rem;color:var(--admin-muted);overflow-wrap:anywhere;line-height:1.45}
+    .cell-duration{white-space:nowrap;color:var(--admin-muted);font-size:.73rem}
+    .cell-code{font-family:var(--font-mono,monospace);font-size:.73rem;color:var(--admin-primary)}
+    .chip{display:inline-block;padding:.22rem .5rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-size:.66rem;font-weight:800;color:var(--admin-muted);white-space:nowrap}
+    .chip.active{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3);color:#86efac}
+    .chip.expired,.chip.banned{background:rgba(251,113,133,.1);border-color:rgba(251,113,133,.3);color:#fda4af}
+
+    /* Loading, empty and error states */
+    .state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.55rem;text-align:center;padding:2rem 1rem;color:var(--admin-muted)}
+    .state .spinner{width:20px;height:20px;border:2px solid rgba(245,158,11,.2);border-top-color:var(--admin-primary);border-radius:50%;animation:admin-spin .8s linear infinite}
+    .state-icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:rgba(245,158,11,.1);color:var(--admin-primary);font-weight:800}
+    .state-icon.error{background:rgba(251,113,133,.1);color:#fda4af}
+    .state strong{font-size:.88rem;color:var(--admin-text)}
+    .state p{margin:0;font-size:.76rem;line-height:1.55;max-width:26rem}
+
+    /* Moderator sign in */
+    .login-form{display:grid;gap:.8rem;text-align:left}
+    .login-mark{width:52px;height:52px;margin:0 auto .1rem;border-radius:15px;display:grid;place-items:center;background:rgba(245,158,11,.12);color:var(--admin-primary)}
+    .login-mark svg{width:25px;height:25px}
+    .login-form h1{font-size:1.45rem;line-height:1.2;margin:0;text-align:center;letter-spacing:-.02em}
+    .login-lead{font-size:.82rem;line-height:1.55;color:var(--admin-muted);margin:0 0 .3rem;text-align:center}
+    .login-field{display:block}
+    .login-field > span{display:block;font-size:.7rem;font-weight:800;color:var(--admin-muted);margin-bottom:.3rem}
+    .login-field input{width:100%;min-height:2.65rem;padding:.55rem .75rem;border-radius:10px;border:1px solid var(--admin-border);background:var(--admin-raised);color:var(--admin-text);font:inherit;font-size:.86rem;transition:border-color 140ms ease,box-shadow 140ms ease}
+    .login-field input::placeholder{color:var(--admin-faint)}
+    .login-field input:focus{outline:none;border-color:var(--admin-primary);box-shadow:0 0 0 3px rgba(245,158,11,.14)}
+    .login-field input:focus-visible{outline:2px solid var(--admin-primary);outline-offset:1px}
+    .login-error{margin:0;padding:.55rem .7rem;border-radius:9px;background:rgba(251,113,133,.1);border:1px solid rgba(251,113,133,.3);color:#fda4af;font-size:.76rem;line-height:1.45}
+    .login-submit{width:100%;margin-top:.2rem}
+
+    @media (max-width:900px){
+      .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media (max-width:720px){
+      .admin-shell{padding:1.25rem 1rem 7rem}
+      .card-body{padding:.9rem 1rem}
+      .card-head{padding:.9rem 1rem}
+      .people{grid-template-columns:1fr;gap:.65rem}
+      .people-arrow{display:none}
+      .data-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+      .data-table,.data-table tbody,.data-table tr,.data-table td{display:block;width:100%}
+      .data-table tr{padding:.85rem;margin-bottom:.7rem;background:var(--admin-raised);border:1px solid var(--admin-border);border-radius:12px}
+      .data-table td{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.38rem 0;border:0;text-align:right}
+      .data-table td::before{content:attr(data-label);flex:0 0 auto;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;color:var(--admin-faint);font-weight:800}
+      .data-table td:first-child{justify-content:flex-start;text-align:left}
+      .data-table td:first-child::before{display:none}
+      .cell-user{text-align:left}
+      .cell-reason{max-width:none}
+    }
+    @media (max-width:420px){
+      .stats-grid{grid-template-columns:1fr 1fr;gap:.6rem}
+      .stat{padding:.85rem}
+      .stat-value{font-size:1.5rem}
+    }
+    @media (prefers-reduced-motion:reduce){
+      .admin-page *,.admin-page *::before,.admin-page *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+    }
+  </style>
+</head>
+<body>
+  <div class="shell full-bleed admin-page">
+    <header>
+      <a class="lockup" href="https://kissmeet.pages.dev/">
+        <span class="mark-tube neon-whole"><svg viewBox="0 0 100 100" role="presentation" aria-hidden="true" style="width:1.12em;height:1.12em;"><defs><linearGradient id="mark-warp" gradientUnits="userSpaceOnUse" x1="8" y1="12" x2="92" y2="88"><stop offset="0" style="stop-color: color-mix(in srgb, #f59e0b calc(var(--lit, 1) * 100%), var(--neon-off, #191430))"></stop><stop offset="1" style="stop-color: color-mix(in srgb, #f59e0b calc(var(--lit, 1) * 100%), var(--neon-off, #191430))"></stop></linearGradient></defs><rect x="6" y="17" width="88" height="66" rx="14" fill="url(#mark-warp)"></rect><g fill="none" stroke="#140e22"><circle cx="46" cy="50" r="22" stroke-width="5.5"></circle><circle cx="49" cy="49" r="11.5" stroke-width="4.5"></circle></g><circle cx="51.5" cy="48.25" r="3.75" fill="#140e22"></circle></svg></span>
+        <span class="wordmark neon-sign">Kis<em>met</em></span>
+      </a>
+    </header>
+
+    <div id="admin-gate" class="gate" role="status">
+      <div class="gate-card">
+        <span id="gate-icon" class="gate-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+        </span>
+        <h1 id="gate-title">Checking access…</h1>
+        <p id="gate-text">Verifying your Kismet session.</p>
+        <div id="gate-spinner" class="gate-spinner" aria-hidden="true"></div>
+        <div id="admin-login" hidden></div>
+        <a id="gate-home" class="abtn primary" href="https://kissmeet.pages.dev/" hidden>Back to Kismet</a>
+        <button id="admin-retry" class="abtn primary" type="button" hidden>Try again</button>
+      </div>
+    </div>
+
+    <main>
+      <div id="admin-dashboard" class="admin-shell" hidden>
+        <div class="admin-top">
+          <div>
+            <span class="page-eyebrow">Moderation</span>
+            <h1 class="page-title">Admin</h1>
+            <p class="page-sub">A quiet place to triage reports, manage bans and keep Kismet safe. Every action is recorded by the backend.</p>
+          </div>
+          <div class="top-actions">
+            <span id="admin-updated" class="updated" aria-live="polite">Not loaded yet</span>
+            <button id="admin-refresh" class="abtn primary" type="button">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+              <span id="admin-refresh-label">Refresh</span>
+            </button>
+            <button id="admin-signout" class="abtn ghost" type="button">Sign out</button>
+          </div>
+        </div>
+
+        <section class="stats-grid" aria-label="Platform statistics" aria-busy="true">
+          <article class="stat accent"><div class="stat-label">Pending reports</div><div class="stat-value" data-stat="pending">—</div></article>
+          <article class="stat"><div class="stat-label">Total reports</div><div class="stat-value" data-stat="reports">—</div></article>
+          <article class="stat danger"><div class="stat-label">Active bans</div><div class="stat-value" data-stat="bans">—</div></article>
+          <article class="stat"><div class="stat-label">Users</div><div class="stat-value" data-stat="users">—</div></article>
+          <article class="stat"><div class="stat-label">Active calls</div><div class="stat-value" data-stat="calls">—</div></article>
+          <article class="stat"><div class="stat-label">Profiles</div><div class="stat-value" data-stat="profiles">—</div></article>
+        </section>
+
+        <section class="admin-card" aria-labelledby="reports-title">
+          <div class="card-head">
+            <div>
+              <h2 id="reports-title">Report queue</h2>
+              <p>Reports awaiting a moderator decision.</p>
+            </div>
+            <span id="reports-count" class="count-chip" aria-label="Report count">—</span>
+          </div>
+          <div id="reports-body" class="card-body" aria-busy="true"></div>
+        </section>
+
+        <section class="admin-card" aria-labelledby="bans-title">
+          <div class="card-head">
+            <div>
+              <h2 id="bans-title">Bans</h2>
+              <p>Duration and reason are shown for each ban.</p>
+            </div>
+            <span id="bans-count" class="count-chip" aria-label="Ban count">—</span>
+          </div>
+          <div id="bans-body" class="card-body" aria-busy="true"></div>
+        </section>
+
+        <section class="admin-card" aria-labelledby="profiles-title">
+          <div class="card-head">
+            <div>
+              <h2 id="profiles-title">Profiles</h2>
+              <p>Search by name, friend code, country or user ID.</p>
+            </div>
+            <div class="top-actions">
+              <label class="sr-only" for="profile-search">Search profiles</label>
+              <input id="profile-search" class="search-input" type="search" placeholder="Search profiles…" autocomplete="off" aria-controls="profiles-body" />
+              <span id="profiles-count" class="count-chip" aria-label="Profile count">—</span>
+            </div>
+          </div>
+          <div id="profiles-body" class="card-body" aria-busy="true"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

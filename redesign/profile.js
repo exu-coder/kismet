@@ -12,12 +12,18 @@
 
   const getUserId = () => window.kismetUser?.id || null;
 
-  // Stable friend code: deterministic per account, never random once an id is known.
+  // High-entropy friend code. It is generated once, then kept stable locally
+  // and normalized by the database trigger on every write.
+  const randomFriendCode = () => {
+    const bytes = new Uint8Array(6);
+    crypto.getRandomValues(bytes);
+    return 'KS-' + Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
+  };
+
   const ensureCode = () => {
     if (profile.code) return profile.code;
-    const id = getUserId();
-    if (!id) return null;
-    profile.code = 'KS-' + id.replace(/-/g, '').slice(0, 6).toUpperCase();
+    if (!getUserId()) return null;
+    profile.code = randomFriendCode();
     save('kismet.profile', profile);
     localStorage.setItem('kismet.mycode', profile.code);
     return profile.code;

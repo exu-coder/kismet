@@ -83,6 +83,15 @@ Supabase dashboard to retire the `session` fallback.
 wrangler pages deploy . --project-name=kissmeet
 ```
 
+The private moderator panel is a separate Pages project:
+
+```bash
+wrangler pages deploy admin-site --project-name=kismet-admin --force
+```
+
+See [docs/admin-panel.md](docs/admin-panel.md) for its custom hostname, DNS and
+admin allowlist setup. It is intentionally not linked from any public page.
+
 ### InfinityFree
 
 ```bash
