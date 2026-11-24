@@ -10,6 +10,7 @@
   const gateText = $('gate-text');
   const gateSpinner = $('gate-spinner');
   const gateHome = $('gate-home');
+  const gateLogin = $('gate-login');
   const retryBtn = $('admin-retry');
   const refreshBtn = $('admin-refresh');
   const refreshLabel = $('admin-refresh-label');
@@ -203,6 +204,7 @@
     gateText.hidden = false;
     gateSpinner.hidden = !options.spinner;
     gateHome.hidden = !options.home;
+    if (gateLogin) gateLogin.hidden = !options.login;
     retryBtn.hidden = !options.retry;
     const login = $('admin-login');
     if (login) login.hidden = true;
@@ -282,7 +284,7 @@
     }
   };
 
-  const showLogin = () => {
+  const showLogin = (message) => {
     ensureLoginStyles();
     let wrap = $('admin-login');
     if (!wrap) {
@@ -349,9 +351,11 @@
     gateText.hidden = true;
     gateSpinner.hidden = true;
     gateHome.hidden = true;
+    if (gateLogin) gateLogin.hidden = true;
     retryBtn.hidden = true;
     wrap.hidden = false;
     clearLoginError();
+    if (message) setLoginError(message);
     try { emailInput.focus(); } catch (_) { /* focus is a nicety */ }
   };
 
@@ -384,7 +388,7 @@
       const isAdmin = await rpc('kismet_is_admin');
       if (isAdmin !== true) {
         await signOutQuiet();
-        leaveClosed('Admin access required', 'This account is not a Kismet moderator. Head back home to keep chatting.', { home: true });
+        leaveClosed('Admin access required', 'This account is not a Kismet moderator. Sign in with a different account, or head back to Kismet.', { home: true, login: true });
         return;
       }
     } catch (error) {
@@ -740,12 +744,13 @@
       toast('Signed out.');
     });
 
+    gateLogin?.addEventListener('click', () => showLogin());
     retryBtn.addEventListener('click', () => window.location.reload());
     refreshBtn.addEventListener('click', () => refreshAll(Object.keys(loaders), true));
     searchInput.addEventListener('input', renderProfiles);
 
     if (!window.kismetReady) {
-      leaveClosed('Admin panel unavailable', 'We could not start a secure session. Please try again in a moment.', { retry: true });
+      leaveClosed('Admin panel unavailable', 'We could not start a secure session. Please try again in a moment.', { retry: true, login: true });
       return;
     }
 
@@ -753,13 +758,13 @@
       await window.kismetReady;
     } catch (error) {
       console.error('[admin] session unavailable:', error?.message || error);
-      leaveClosed('Admin panel unavailable', 'We could not start a secure session. Please try again in a moment.', { retry: true });
+      leaveClosed('Admin panel unavailable', 'We could not start a secure session. Please try again in a moment.', { retry: true, login: true });
       return;
     }
 
     const sb = window.kismetSupabase;
     if (!sb?.auth?.getSession) {
-      leaveClosed('Admin panel unavailable', 'Authentication is not available right now. Please try again.', { retry: true });
+      leaveClosed('Admin panel unavailable', 'Authentication is not available right now. Please try again.', { retry: true, login: true });
       return;
     }
 

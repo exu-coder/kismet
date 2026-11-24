@@ -26,7 +26,7 @@ To revoke access, delete the allowlist row; no redeploy is needed. Do not add si
 
 ## Using the panel
 
-- **Sign in** with the moderator email/password. Wrong credentials and network failures produce distinct inline messages plus toasts. The password is never displayed, logged or stored.
+- **Sign in** with the moderator email/password. If an existing session is not a moderator, the gate shows a *Sign in as moderator* button so the correct account can be used. Wrong credentials and network failures produce distinct inline messages plus toasts. The password is never displayed, logged or stored.
 - **Refresh** reloads all sections and shows a toast. Each section also has its own *Try again* button if a request fails.
 - **Sign out** ends the Supabase session, clears moderation data from the screen and returns to the login form.
 - **Statistics** shows pending and total reports, active bans, users, active calls and profiles.
