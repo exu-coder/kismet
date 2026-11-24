@@ -3,7 +3,7 @@
 The moderation dashboard is served from its own Cloudflare Pages project (`kismet-admin`) at **https://kissmeet.pages.dev.see.you.com/**. It is deliberately unlinked from the public site: no nav item, footer link, sitemap entry, `robots.txt` rule or public-page mention. The only way in is typing the hostname directly.
 
 > The hostname needs a DNS CNAME at `see.you.com`:
-> `kissmeet.pages.dev.see.you.com → kissmeet.pages.dev` (or the `kismet-admin` Pages domain). Until that record exists, Cloudflare shows the domain as pending.
+> `kissmeet.pages.dev.see.you.com → kismet-admin-5sw.pages.dev`. Until that record exists, Cloudflare shows the domain as pending.
 
 The page is static and talks to Supabase only through server-side RPCs. No admin key, service-role key or moderation table is exposed to the browser.
 
