@@ -2,6 +2,8 @@
 
 > Instant random video chat — no account, no downloads, actively moderated.
 
+![Kismet preview](og.png)
+
 **Live:** https://kissmeet.pages.dev
 **Source:** https://github.com/exu-coder/kismet
 **License:** [AGPL-3.0](LICENSE)
