@@ -26,9 +26,6 @@ const TEXT_EXT = /\.(html|xml|txt|webmanifest|json)$/i;
 // Hosts the site has been published under so far.
 const OLD_HOSTS = [
   "https://kissmeet.pages.dev",
-  "https://kismet-k2f.pages.dev",
-  "https://warpmeet.com",
-  "https://www.warpmeet.com",
 ];
 
 const files = [];
