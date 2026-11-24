@@ -20,6 +20,10 @@
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <span>Profile</span>
     </a>
+    <a href="/support/" class="kn-tab" data-page="support">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4"/><path d="M12 17h.01"/></svg>
+      <span>Support</span>
+    </a>
   `;
   document.body.appendChild(nav);
 
@@ -30,7 +34,8 @@
     const isActive = (pg === 'match' && (path === '' || path === '/' || path === '/chat' || path === '/match')) ||
                      (pg === 'requests' && path === '/requests') ||
                      (pg === 'inbox' && path === '/inbox') ||
-                     (pg === 'profile' && path === '/profile');
+                     (pg === 'profile' && path === '/profile') ||
+                     (pg === 'support' && path === '/support');
     t.classList.toggle('active', isActive);
   });
 

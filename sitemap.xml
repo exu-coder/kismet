@@ -161,6 +161,11 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://kissmeet.pages.dev/talk-to-strangers" />
   </url>
   <url>
+    <loc>https://kissmeet.pages.dev/support</loc>
+    <lastmod>2026-11-24</lastmod>
+    <priority>0.4</priority>
+  </url>
+  <url>
     <loc>https://kissmeet.pages.dev/terms</loc>
     <lastmod>2026-11-24</lastmod>
     <priority>0.3</priority>

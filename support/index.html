@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kismet — support &amp; community</title>
+  <meta name="theme-color" content="#070a14" />
+  <meta name="robots" content="noindex, follow" />
+  <link rel="canonical" href="https://kissmeet.pages.dev/support" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="icon" href="/favicon.png" type="image/png" />
+  <link rel="stylesheet" href="/redesign/theme.css">
+  <script src="/redesign/pixels.js" defer></script>
+  <script src="/redesign/nav.js" defer></script>
+  <style>
+    .support-wrap{max-width:52rem;margin:0 auto;padding:2rem 1.25rem 2rem}
+    .support-title{font-size:clamp(1.9rem,4.5vw,2.7rem);margin:0 0 .5rem;color:var(--color-text,#efe8d6)}
+    .support-lead{color:var(--color-text-light,#b6b1c4);line-height:1.6;margin:0 0 2rem;max-width:40rem}
+    .support-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    .support-card{display:flex;flex-direction:column;gap:.75rem;padding:1.4rem;background:var(--color-bg-container,#0c101f);border:1px solid var(--color-border,#232b47);border-radius:14px;text-decoration:none;color:inherit;transition:transform .15s ease,border-color .15s ease,background .15s ease}
+    .support-card:hover{transform:translateY(-3px);border-color:rgba(245,158,11,.55);background:var(--color-bg-raised,#151b30)}
+    .support-card:active{transform:translateY(-1px)}
+    .support-icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:rgba(245,158,11,.12);color:var(--color-primary,#f59e0b)}
+    .support-icon svg{width:24px;height:24px}
+    .support-card h2{margin:0;font-size:1.15rem;color:var(--color-text,#efe8d6)}
+    .support-card p{margin:0;font-size:.9rem;line-height:1.55;color:var(--color-text-light,#b6b1c4)}
+    .support-handle{font-size:.82rem;color:var(--color-primary,#f59e0b);font-weight:700;word-break:break-all}
+    .support-note{margin-top:1.5rem;padding:1rem 1.1rem;border-left:3px solid var(--color-primary,#f59e0b);background:rgba(245,158,11,.06);border-radius:0 10px 10px 0;color:var(--color-text-light,#b6b1c4);font-size:.88rem;line-height:1.6}
+    .support-note strong{color:var(--color-text,#efe8d6)}
+    @media (max-width:640px){.support-grid{grid-template-columns:1fr}.support-wrap{padding-top:1.5rem}}
+  </style>
+</head>
+<body>
+  <div class="shell full-bleed">
+    <header>
+      <a class="lockup" href="/">
+        <span class="mark-tube neon-whole"><svg viewBox="0 0 100 100" role="presentation" aria-hidden="true" style="width:1.12em;height:1.12em;"><defs><linearGradient id="mark-warp" gradientUnits="userSpaceOnUse" x1="8" y1="12" x2="92" y2="88"><stop offset="0" style="stop-color: color-mix(in srgb, #f59e0b calc(var(--lit, 1) * 100%), var(--neon-off, #191430))"></stop><stop offset="1" style="stop-color: color-mix(in srgb, #f59e0b calc(var(--lit, 1) * 100%), var(--neon-off, #191430))"></stop></linearGradient></defs><rect x="6" y="17" width="88" height="66" rx="14" fill="url(#mark-warp)"></rect><g fill="none" stroke="#140e22"><circle cx="46" cy="50" r="22" stroke-width="5.5"></circle><circle cx="49" cy="49" r="11.5" stroke-width="4.5"></circle></g><circle cx="51.5" cy="48.25" r="3.75" fill="#140e22"></circle></svg></span>
+        <span class="wordmark neon-sign">Kis<em>met</em></span>
+      </a>
+    </header>
+    <main>
+      <div class="support-wrap">
+        <h1 class="support-title">Support &amp; community</h1>
+        <p class="support-lead">Kismet is built and moderated in the open. Follow the channel for updates, or join the support group if you need help, want to report a problem, or have an idea for the next version.</p>
+
+        <div class="support-grid">
+          <a class="support-card" href="https://t.me/kissmeet_dev" target="_blank" rel="noopener noreferrer">
+            <span class="support-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
+            </span>
+            <h2>Updates channel</h2>
+            <p>Release notes, new features, maintenance notices and the occasional behind-the-scenes look at what's being built.</p>
+            <span class="support-handle">t.me/kissmeet_dev</span>
+          </a>
+
+          <a class="support-card" href="https://t.me/kissmeet_sp_dev" target="_blank" rel="noopener noreferrer">
+            <span class="support-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 10h8"/><path d="M8 14h5"/></svg>
+            </span>
+            <h2>Support group</h2>
+            <p>Ask a question, report a bug, get unstuck with camera or matching issues, or talk to other people who use Kismet.</p>
+            <span class="support-handle">t.me/kissmeet_sp_dev</span>
+          </a>
+        </div>
+
+        <div class="support-note">
+          <strong>Stay anonymous.</strong> Kismet has no accounts by design. Never post your real name, phone number, address or account details in a public Telegram group — moderators will never ask you for them. For safety reports, include only the date, approximate time and what happened.
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
