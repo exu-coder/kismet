@@ -1,7 +1,7 @@
 # Kismet — deploy & backend reference
 
 ## Live
-- Site: https://kismet-k2f.pages.dev (preview URLs are `https://<hash>.kismet-k2f.pages.dev`)
+- Site: https://kissmeet.pages.dev (preview URLs are `https://<hash>.kissmeet.pages.dev`)
 - GitHub: https://github.com/exu-coder/kismet
 - Supabase project ref: `xjckwcvwssuadqkxgumt` (ap-south-1)
 

@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 const root = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const args = process.argv.slice(2);
 const flag = args.indexOf("--site-url");
-const siteUrl = (flag !== -1 ? args[flag + 1] : process.env.SITE_URL || "https://kismet-k2f.pages.dev")
+const siteUrl = (flag !== -1 ? args[flag + 1] : process.env.SITE_URL || "https://kissmeet.pages.dev")
   .replace(/\/+$/, "");
 
 const distDir = join(root, "dist", "infinityfree");

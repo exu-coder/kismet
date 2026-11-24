@@ -17,7 +17,7 @@ const root = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const args = process.argv.slice(2);
 const flagIndex = args.indexOf("--site-url");
 const SITE_URL = (
-  flagIndex !== -1 ? args[flagIndex + 1] : process.env.SITE_URL || "https://kismet-k2f.pages.dev"
+  flagIndex !== -1 ? args[flagIndex + 1] : process.env.SITE_URL || "https://kissmeet.pages.dev"
 ).replace(/\/+$/, "");
 
 // Directories that never contain public pages.

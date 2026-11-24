@@ -1,1 +1,1 @@
-var e=`Kismet`,t=`kismet-k2f.pages.dev`;`${t}`;var n=`672008119309-1039f1j8rf65trkmisab1pone74vmsk1.apps.googleusercontent.com`,r=`kismet`,i=e=>`${r}.${e}`;`${t}`,`${t}`;export{e as n,i as r,n as t};
+var e=`Kismet`,t=`kissmeet.pages.dev`;`${t}`;var n=`672008119309-1039f1j8rf65trkmisab1pone74vmsk1.apps.googleusercontent.com`,r=`kismet`,i=e=>`${r}.${e}`;`${t}`,`${t}`;export{e as n,i as r,n as t};

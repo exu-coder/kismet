@@ -9,4 +9,4 @@ Disallow: /supabase/
 Disallow: /redesign/
 Disallow: /_app/
 
-Sitemap: https://kismet-k2f.pages.dev/sitemap.xml
+Sitemap: https://kissmeet.pages.dev/sitemap.xml

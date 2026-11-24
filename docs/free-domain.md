@@ -1,6 +1,6 @@
 # Free domain options for Kismet
 
-Kismet already ships on Cloudflare Pages at `https://kismet-k2f.pages.dev`.
+Kismet already ships on Cloudflare Pages at `https://kissmeet.pages.dev`.
 The `.dev` and `.io` TLDs are paid, so a truly free name has to be a
 subdomain of a free domain service. Three routes work well; pick one.
 
@@ -14,7 +14,7 @@ subdomain of a free domain service. Three routes work well; pick one.
   2. Copy `docs/is-a-dev/kismet.json` from this repo into the fork's
      `domains/` directory.
   3. Open a pull request using the template in that repo, include a
-     screenshot and the link `https://kismet-k2f.pages.dev`.
+     screenshot and the link `https://kissmeet.pages.dev`.
   4. Wait for review (volunteers; usually days, sometimes weeks).
   5. Once merged, attach the domain to the Pages project:
      Cloudflare Dashboard -> Pages -> kismet -> Custom domains -> Add

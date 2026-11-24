@@ -22,8 +22,8 @@ enabled = true
 # Anonymous-only product: every visitor gets a secure anonymous Supabase user.
 # The same switch must be enabled in Dashboard → Authentication → Sign In / Providers.
 enable_anonymous_sign_ins = true
-site_url = "https://kismet-k2f.pages.dev"
-additional_redirect_urls = ["https://kismet-k2f.pages.dev/**", "https://*.kismet-k2f.pages.dev/**", "http://localhost:3000/**"]
+site_url = "https://kissmeet.pages.dev"
+additional_redirect_urls = ["https://kissmeet.pages.dev/**", "https://*.kissmeet.pages.dev/**", "http://localhost:3000/**"]
 jwt_expiry = 3600
 enable_signup = true
 
