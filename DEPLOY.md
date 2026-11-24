@@ -78,6 +78,11 @@ per subscriber. Signaling uses private ephemeral broadcast channels
 the call id it was given, so a late leave cannot delete a newer queue row or unmatch a
 newer call.
 
+## License
+Kismet is licensed under the **GNU Affero General Public License v3.0** (AGPL-3.0).
+See [`LICENSE`](LICENSE) in the repository root. Source code:
+https://github.com/exu-coder/kismet
+
 ## Where the code lives
 - **Website pages** — `index.html`, `chat/`, `inbox/`, `requests/`, `profile/`, plus
   `es/` and `pt/` localised landing pages.
