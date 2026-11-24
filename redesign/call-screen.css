@@ -1,0 +1,144 @@
+/* ============================================================
+   Private call overlay — rounded, soft-shadowed.
+   ============================================================ */
+
+[hidden]{display:none !important}
+
+.kc-call{
+  position:fixed;inset:0;z-index:70;
+  display:flex;flex-direction:column;
+  background:radial-gradient(ellipse at top,rgba(245,158,11,.12),transparent 60%),#070a14;
+}
+
+/* ---------- Timer ---------- */
+.kc-timer{
+  flex:none;
+  padding:calc(.9rem + env(safe-area-inset-top,0px)) 1rem .6rem;
+  text-align:center;
+  color:var(--color-text-light,#b6b1c4);
+  font-size:.78rem;font-weight:700;letter-spacing:.06em;
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- Ring stage ---------- */
+.kc-stage{
+  flex:1;min-height:0;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:.6rem;padding:1rem;
+}
+.kc-avatar{
+  width:108px;height:108px;
+  border-radius:50%;overflow:hidden;
+  display:grid;place-items:center;
+  background:linear-gradient(135deg,#f59e0b,#b45309);
+  color:#140e22;
+  font-size:2.4rem;font-weight:800;
+  box-shadow:0 0 0 6px rgba(245,158,11,.15),0 20px 50px rgba(0,0,0,.5);
+  animation:kc-pulse 2s infinite;
+}
+.kc-avatar .km-avatar{--km-avatar-size:108px;border:0}
+.kc-avatar img{width:100%;height:100%;object-fit:cover}
+@keyframes kc-pulse{50%{transform:scale(1.06)}}
+
+.kc-name{
+  font-size:1.25rem;font-weight:700;
+  color:var(--color-text,#efe8d6);
+  max-width:86vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.kc-status{font-size:.85rem;color:var(--color-text-faint,#9c97ad)}
+
+/* ---------- Video grid ---------- */
+.kc-grid{
+  flex:1;min-height:0;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:.5rem;padding:.5rem;
+  position:relative;
+}
+.kc-tile{
+  position:relative;min-height:0;
+  border-radius:16px;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  background:#111625;
+  border:1px solid rgba(255,255,255,.06);
+}
+.kc-tile video{
+  position:absolute;inset:0;
+  width:100%;height:100%;
+  object-fit:cover;background:#000;
+}
+.kc-tile.kc-me video{transform:scaleX(-1)}
+
+.kc-peer-avatar{
+  width:88px;height:88px;
+  border-radius:50%;overflow:hidden;
+  display:grid;place-items:center;
+  background:linear-gradient(135deg,#f59e0b,#b45309);
+  color:#140e22;
+  font-size:2rem;font-weight:800;
+}
+.kc-peer-avatar .km-avatar{--km-avatar-size:88px;border:0}
+
+.kc-label{
+  position:absolute;left:.55rem;bottom:.45rem;
+  padding:.22rem .55rem;
+  border-radius:10px;
+  background:rgba(0,0,0,.65);
+  color:#fff;font-size:.68rem;z-index:2;
+}
+
+/* ---------- Control bars ---------- */
+.kc-incoming,.kc-live{
+  flex:none;
+  display:flex;align-items:center;justify-content:center;gap:1rem;
+  padding:1.2rem 1rem calc(1.6rem + env(safe-area-inset-bottom,0px));
+}
+.kc-btn{
+  width:56px;height:56px;
+  border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(245,158,11,.14);
+  color:var(--color-text,#efe8d6);
+  border:1px solid rgba(255,255,255,.06);
+  cursor:pointer;
+  transition:transform .15s ease,background .15s ease,box-shadow .15s ease;
+}
+.kc-btn svg{width:22px;height:22px}
+.kc-btn:hover{background:rgba(245,158,11,.26);transform:translateY(-1px)}
+.kc-btn:active{transform:scale(.94)}
+
+.kc-btn.kc-accept{
+  background:#5ce1a6;color:#070a14;
+  box-shadow:0 6px 20px rgba(92,225,166,.35);
+  animation:kc-ring 1.4s infinite;
+}
+@keyframes kc-ring{
+  0%,100%{box-shadow:0 6px 20px rgba(92,225,166,.35)}
+  50%{box-shadow:0 6px 26px rgba(92,225,166,.65)}
+}
+.kc-btn.kc-reject,.kc-btn.kc-end{
+  background:#ff5c8a;color:#fff;
+  box-shadow:0 6px 20px rgba(255,92,138,.35);
+}
+.kc-btn.kc-reject:hover,.kc-btn.kc-end:hover{filter:brightness(1.08)}
+.kc-btn.kc-off{
+  background:rgba(255,255,255,.15);
+  color:#9c97ad;
+}
+
+/* ---------- Focus ---------- */
+.kc-call :focus-visible{
+  outline:2px solid var(--color-primary,#f59e0b);
+  outline-offset:2px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width:560px){
+  .kc-grid{grid-template-columns:1fr}
+  .kc-btn{width:52px;height:52px}
+}
+@media (prefers-reduced-motion:reduce){
+  .kc-avatar,.kc-btn.kc-accept{animation:none}
+  .kc-btn{transition:none}
+}

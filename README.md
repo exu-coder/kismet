@@ -18,12 +18,14 @@ no profile, no history — just whoever is in front of you, right now.
   and interest preferences.
 - **Anonymous by default** — every browser gets a secure anonymous session; identity
   is only revealed during a live call, and only after both sides agree.
-- **Friends & inbox** — send friend requests during a call, accept/reject them, and
-  chat with accepted friends. Realtime updates.
+- **Friends & messenger-style inbox** — reveal to send a request, then see the
+  person's display name and profile photo in requests, conversations and chat.
+  Accepting a request opens the conversation immediately; updates are realtime.
 - **Safety** — adults-only, one-press anonymous reporting, active moderation, banned
-  users stop being matched.
-- **No accounts** — no email, no password, no profile. Close the tab and the camera
-  is off.
+  users stop being matched. Revealed identity details are visible only to the people
+  in that accepted friendship or pending request.
+- **No sign-up** — no email, no password, no OAuth. Your anonymous session and
+  optional display profile stay in the browser. Close the tab and the camera is off.
 - **Browser-native** — works on Android, iPhone and desktop with no install.
 - **Multilingual** — English, Spanish and Portuguese landing pages.
 

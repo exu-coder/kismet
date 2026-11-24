@@ -16,6 +16,11 @@
   }
   const userId = window.kismetUser?.id;
   if (!userId) return;
+  const idKit = window.kismetIdentity || {
+    safePhotoUrl: () => '',
+    displayName: person => person?.name || 'Anonymous',
+    avatar: () => document.createElement('span')
+  };
 
   // ---- State ----
   let localStream = null;
@@ -453,9 +458,12 @@
     chan.on('broadcast', { event: 'reveal' }, ({ payload }) => {
       if (!payload?.from || payload.from === userId || !alive()) return;
       const name = String(payload.name || 'Stranger').slice(0, 80);
+      const code = String(payload.code || '').slice(0, 24);
+      const photo = idKit.safePhotoUrl(payload.photo_url);
       remoteLabel.textContent = name;
       showToast(name + ' revealed their identity!');
-      showFriendRequestButton(name, payload.from, String(payload.code || '').slice(0, 24));
+      showRevealedIdentity(name, code, photo);
+      showFriendRequestButton(name, payload.from, code, photo);
     });
 
     chan.on('broadcast', { event: 'hangup' }, () => {
@@ -585,6 +593,8 @@
     chatSection.style.display = 'none';
     const frBtn = document.getElementById('friend-request-btn');
     if (frBtn) frBtn.remove();
+    const revealCard = document.getElementById('revealed-identity');
+    if (revealCard) revealCard.remove();
     revealed = false;
     btnReveal.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> <span>Reveal identity</span>';
     btnReveal.classList.remove('revealed');
@@ -620,25 +630,54 @@
     };
     const fallbackCode = profile.code || localStorage.getItem('kismet.mycode') || newCode();
     const { data: existing, error: readError } = await sb.from('profiles')
-      .select('name,friend_code').eq('user_id', userId).maybeSingle();
+      .select('name,friend_code,photo_url').eq('user_id', userId).maybeSingle();
     if (readError) console.warn('Could not read the saved profile:', readError);
     const name = profile.name || existing?.name || 'Anonymous';
     const code = existing?.friend_code || fallbackCode;
+    const photo = idKit.safePhotoUrl(profile.photo) || idKit.safePhotoUrl(existing?.photo_url) || null;
     const { error } = await sb.from('profiles').upsert({
       user_id: userId,
       name,
       friend_code: code,
+      photo_url: photo,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' });
     if (error) throw error;
     try {
-      localStorage.setItem('kismet.profile', JSON.stringify({ ...profile, name, code }));
+      localStorage.setItem('kismet.profile', JSON.stringify({ ...profile, name, code, photo }));
       localStorage.setItem('kismet.mycode', code);
     } catch (_) {}
-    return { name, code };
+    return { name, code, photo };
   };
 
-  const showFriendRequestButton = (name, fromId, fromCode) => {
+  // Realtime payloads stay small; the full saved photo is loaded from profiles
+  // on the requests/inbox pages, where RLS permits it for revealed friends.
+  const broadcastPhoto = (photo) => {
+    const safe = idKit.safePhotoUrl(photo);
+    return safe && safe.length <= 120000 ? safe : '';
+  };
+
+  const showRevealedIdentity = (name, code, photo) => {
+    let card = document.getElementById('revealed-identity');
+    if (card) card.remove();
+    card = document.createElement('div');
+    card.id = 'revealed-identity';
+    card.className = 'km-reveal-card';
+    card.appendChild(idKit.avatar({ name, photo_url: photo }, 48));
+    const text = document.createElement('div');
+    text.className = 'km-reveal-card__text';
+    const label = document.createElement('span');
+    label.className = 'km-reveal-card__name';
+    label.textContent = name;
+    const meta = document.createElement('span');
+    meta.className = 'km-reveal-card__meta';
+    meta.textContent = code || 'Revealed in this call';
+    text.append(label, meta);
+    card.appendChild(text);
+    revealSection.insertBefore(card, btnReveal);
+  };
+
+  const showFriendRequestButton = (name, fromId, fromCode, photo) => {
     let btn = document.getElementById('friend-request-btn');
     if (btn) btn.remove();
 
@@ -669,7 +708,7 @@
         signalingChannel.send({
           type: 'broadcast',
           event: 'friend-request',
-          payload: { from: userId, name: identity.name, code: identity.code },
+          payload: { from: userId, name: identity.name, code: identity.code, photo_url: broadcastPhoto(identity.photo) },
         }).catch(() => {});
       }
       showToast('Friend request sent!');
@@ -724,7 +763,7 @@
       signalingChannel.send({
         type: 'broadcast',
         event: 'reveal',
-        payload: { name: identity.name, from: userId, code: identity.code },
+        payload: { name: identity.name, from: userId, code: identity.code, photo_url: broadcastPhoto(identity.photo) },
       }).catch(() => {});
     }
     showToast('You revealed your identity!');

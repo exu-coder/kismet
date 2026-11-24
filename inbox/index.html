@@ -9,14 +9,21 @@
   <link rel="canonical" href="https://kissmeet.pages.dev/inbox" />
   <meta name="color-scheme" content="dark" />
   <link rel="icon" href="/favicon.png" type="image/png" />
-  <link rel="stylesheet" href="/redesign/theme.css">
+  <link rel="stylesheet" href="/redesign/theme.css?v=3">
+  <link rel="stylesheet" href="/redesign/messenger.css?v=2">
+  <link rel="stylesheet" href="/redesign/chat-screen.css?v=10">
+  <link rel="stylesheet" href="/redesign/call-screen.css?v=2">
   <script src="/redesign/pixels.js" defer></script>
   <script src="/redesign/nav.js" defer></script>
   <script src="/redesign/toast.js" defer></script>
   <script src="/redesign/supabase.min.js" defer></script>
   <script src="/redesign/supabase.js" defer></script>
-  <script src="/redesign/inbox.js" defer></script>
-	</head>
+  <script src="/redesign/identity.js?v=1" defer></script>
+  <script src="/redesign/emoji.js?v=1" defer></script>
+  <script src="/redesign/emoji-picker.js?v=1" defer></script>
+  <script src="/redesign/call.js?v=2" defer></script>
+  <script src="/redesign/inbox.js?v=9" defer></script>
+</head>
 <body>
   <div class="shell full-bleed">
     <header>
@@ -26,20 +33,122 @@
       </a>
     </header>
     <main>
-      <div class="content" style="max-width:52rem;margin:0 auto;padding:2rem 1.5rem 6rem;">
-        <h1 style="font-size:clamp(1.8rem,4vw,2.6rem);margin:0 0 1.5rem;">Chat</h1>
-        <div id="inbox-list"></div>
-        <div id="chat-view" style="display:none;">
-          <button id="back-btn" class="ka-btn ghost" style="margin-bottom:.75rem;">← Back</button>
-          <div id="chat-name" style="font-weight:700;font-size:1.1rem;margin-bottom:.5rem;color:var(--color-text,#efe8d6)"></div>
-          <div id="messages" style="min-height:12rem;max-height:40vh;overflow-y:auto;display:flex;flex-direction:column;gap:.4rem;padding:.5rem 0;border:1px solid var(--color-border,#232b47);padding:.75rem;margin-bottom:.5rem;background:var(--color-bg-container,#0c101f)"></div>
-          <div style="display:flex;gap:.4rem;">
-            <input id="msg-input" class="ka-input" placeholder="Type a message…" style="flex:1;" />
-            <button id="send-btn" class="ka-btn">Send</button>
+      <div class="content cs-page">
+        <h1 class="cs-heading">Chat</h1>
+
+        <div class="cs-app" id="chat-app">
+          <div class="cs-topbar">
+            <button id="back-btn" class="cs-icon-btn" type="button" aria-label="Back to conversations" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+            </button>
+            <div id="thread-title" class="cs-thread-title">Messages</div>
+            <button id="peer-btn" class="cs-identity" type="button" aria-label="View friend profile" hidden></button>
+            <div id="call-actions" class="cs-call-actions" hidden>
+              <button id="audio-btn" class="cs-icon-btn" type="button" aria-label="Private audio call" title="Audio call">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              </button>
+              <button id="video-btn" class="cs-icon-btn" type="button" aria-label="Private video call" title="Video call">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+              </button>
+            </div>
+            <button id="profile-btn" class="cs-icon-btn" type="button" aria-label="View friend profile" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+            </button>
+          </div>
+
+          <div id="inbox-list" class="cs-threads" aria-label="Conversations"></div>
+
+          <div id="chat-view" class="cs-conversation" hidden>
+            <div id="messages" class="cs-messages" role="log" aria-live="polite" aria-label="Conversation"></div>
+            <button id="jump-btn" class="cs-jump" type="button" aria-label="Jump to latest message" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+            </button>
+            <form id="compose-form" class="cs-compose">
+              <label class="sr-only" for="msg-input">Message</label>
+              <input id="msg-input" class="cs-input" type="text" maxlength="4000" placeholder="Message" autocomplete="off" />
+              <button id="emoji-btn" class="cs-icon-btn cs-emoji-btn" type="button" aria-label="Emoji" title="Emoji">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></svg>
+              </button>
+              <button id="send-btn" class="cs-send" type="submit" aria-label="Send message">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+              </button>
+            </form>
           </div>
         </div>
       </div>
     </main>
+  </div>
+
+  <div id="profile-overlay" class="cs-profile-overlay" hidden>
+    <div class="cs-profile-card" role="dialog" aria-modal="true" aria-labelledby="profile-name">
+      <div id="profile-avatar" class="cs-profile-avatar"></div>
+      <h2 id="profile-name" class="cs-profile-name"></h2>
+      <p id="profile-meta" class="cs-profile-meta"></p>
+      <div class="cs-profile-actions">
+        <button id="profile-call" class="cs-secondary" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          <span>Video call</span>
+        </button>
+        <button id="profile-message" class="cs-primary" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/></svg>
+          <span>Message</span>
+        </button>
+        <button id="profile-close" class="cs-secondary" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Emoji picker, data from /redesign/emoji.js -->
+  <div id="emoji-picker" aria-label="Emoji picker">
+    <div class="ke-head">
+      <input id="emoji-search" type="search" placeholder="Search emoji…" autocomplete="off" aria-label="Search emoji" />
+      <button id="emoji-close" class="ke-close" type="button" aria-label="Close emoji picker">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div id="emoji-tabs" class="ke-tabs"></div>
+    <div id="emoji-grid" class="ke-grid"></div>
+    <div id="emoji-hint" class="ke-hint">Pick an emoji</div>
+  </div>
+
+  <!-- Private call overlay -->
+  <div id="call-overlay" class="kc-call" hidden>
+    <div class="kc-timer" id="call-timer">Connecting…</div>
+    <div class="kc-stage" id="call-stage">
+      <div class="kc-avatar" id="call-avatar"></div>
+      <div class="kc-name" id="call-name">Friend</div>
+      <div class="kc-status" id="call-status">Ringing…</div>
+    </div>
+    <div class="kc-grid" id="call-grid" hidden>
+      <div class="kc-tile kc-me" id="call-tile-me">
+        <video id="call-video-me" autoplay playsinline muted></video>
+        <div class="kc-label">You</div>
+      </div>
+      <div class="kc-tile kc-peer" id="call-tile-peer">
+        <video id="call-video-peer" autoplay playsinline hidden></video>
+        <div class="kc-peer-avatar" id="call-peer-avatar"></div>
+        <div class="kc-label" id="call-peer-name">Friend</div>
+      </div>
+    </div>
+    <div class="kc-incoming" id="call-incoming">
+      <button class="kc-btn kc-accept" id="call-accept" type="button" aria-label="Accept call">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </button>
+      <button class="kc-btn kc-reject" id="call-reject" type="button" aria-label="Reject call">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><path d="M23 1 1 23"/></svg>
+      </button>
+    </div>
+    <div class="kc-live" id="call-live" hidden>
+      <button class="kc-btn" id="call-mute" type="button" aria-label="Mute microphone" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4"/><path d="M8 23h8"/></svg>
+      </button>
+      <button class="kc-btn" id="call-cam" type="button" aria-label="Turn camera off" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+      </button>
+      <button class="kc-btn kc-end" id="call-end" type="button" aria-label="End call">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><path d="M23 1 1 23"/></svg>
+      </button>
+    </div>
   </div>
 </body>
 </html>

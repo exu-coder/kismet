@@ -1,20 +1,17 @@
 /* ============================================================
-   KISMET — redesign layer
-   Retro-future pixel starfield × editorial serif (Tinos, the
-   metric-compatible heir to Times New Roman). Loaded after the
-   app styles: remaps the design tokens the whole app consumes,
-   then adds the pixel language where it matters.
+   KISMET — theme tokens + base layer
+   Retro-future pixel starfield × editorial serif.
+   Loaded FIRST — every other stylesheet reads from these tokens.
    ============================================================ */
 
-/* ---------- The serif ---------- */
+/* ---------- Serif ---------- */
 @font-face{font-family:Tinos;font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/tinos-latin-400.woff2) format("woff2")}
 @font-face{font-family:Tinos;font-style:normal;font-weight:700;font-display:swap;src:url(/fonts/tinos-latin-700.woff2) format("woff2")}
 @font-face{font-family:Tinos;font-style:italic;font-weight:400;font-display:swap;src:url(/fonts/tinos-latin-400i.woff2) format("woff2")}
 @font-face{font-family:Tinos;font-style:italic;font-weight:700;font-display:swap;src:url(/fonts/tinos-latin-700i.woff2) format("woff2")}
 
-/* ---------- Tokens: deep-space ink, warm paper, starlight gold ---------- */
+/* ---------- Tokens ---------- */
 :root{
-  /* ink scale */
   --void-950:#070a14;
   --void-900:#0c101f;
   --void-850:#101527;
@@ -22,20 +19,20 @@
   --void-700:#232b47;
   --void-600:#313b5e;
   --void-500:#404c74;
-  /* starlight paper */
+
   --star-100:#efe8d6;
   --star-300:#b6b1c4;
   --star-500:#8e8aa2;
-  /* kismet gold (primary) */
+
   --violet-300:#fef3c7;
   --violet-400:#fbbf24;
   --violet-500:#f59e0b;
   --violet-600:#d97706;
-  /* amber twin — keeps brand gradients flat and warm */
+
   --magenta-400:#fef3c7;
   --magenta-500:#f59e0b;
   --magenta-600:#d97706;
-  /* supporting sky */
+
   --cyan-400:#6fd3e7;
   --pink-400:#ff9fb0;
   --red-400:#ff7a80;
@@ -47,20 +44,20 @@
   --amber-400:#ffc466;
   --amber-500:#f5a623;
   --amber-600:#d98a06;
-  /* chat tiles */
+
   --tile-1:#0c101f;
   --tile-2:#101527;
   --tile-3:#151b30;
   --tile-4:#1a2138;
   --tile-5:#232b47;
   --tile-flash:#f59e0b;
-  /* neon sign, unplugged: serif doesn't glow */
+
   --neon-core:#fff;
   --neon-on:var(--star-100);
   --neon-glow:transparent;
   --neon-deep:transparent;
   --neon-off:#101527;
-  /* semantic remap */
+
   --color-bg:var(--void-950);
   --color-bg-alt:var(--void-850);
   --color-bg-container:var(--void-900);
@@ -77,16 +74,15 @@
   --color-on-primary:#0c101f;
   --color-focus:var(--violet-300);
   --focus-ring:0 0 0 2px var(--void-950), 0 0 0 4px var(--violet-300);
-  /* pixel focus: sharp corners, no circular ring */
   --focus-ring-sharp:inset 0 0 0 2px var(--violet-300);
   --gradient-brand:linear-gradient(var(--violet-500), var(--violet-500));
   --gradient-brand-hover:linear-gradient(var(--violet-400), var(--violet-400));
   --gradient-brand-active:linear-gradient(var(--violet-600), var(--violet-600));
-  /* one serif voice */
+
   --font-sign:"Tinos","Times New Roman",Times,Georgia,serif;
   --font-display:"Tinos","Times New Roman",Times,Georgia,serif;
   --font-body:"Tinos","Times New Roman",Times,Georgia,serif;
-  /* serif scale: a touch larger, more air */
+
   --text-xs:.8125rem;
   --text-sm:.9375rem;
   --text-base:1.0625rem;
@@ -96,162 +92,170 @@
   --text-3xl:2rem;
   --text-display:clamp(2.4rem,6vw,4.2rem);
   --text-display-sm:clamp(1.8rem,4.5vw,2.7rem);
+
   --leading-tight:1.18;
   --leading-snug:1.4;
   --leading-normal:1.65;
   --tracking-tight:-.01em;
   --measure:36rem;
-  /* pixel geometry: near-square corners, hard shadows */
-  --radius-xs:0;
-  --radius-sm:2px;
-  --radius-md:2px;
-  --radius-lg:3px;
-  --radius-xl:3px;
-  --shadow-sm:2px 2px 0 #00000073;
-  --shadow-md:4px 4px 0 #00000080;
-  --shadow-lg:8px 8px 0 #00000080;
-  --shadow-inset:inset 0 2px 0 #00000059;
+
+  --radius-xs:6px;
+  --radius-sm:10px;
+  --radius-md:14px;
+  --radius-lg:18px;
+  --radius-xl:22px;
+  --shadow-sm:0 2px 6px rgba(0,0,0,.35);
+  --shadow-md:0 8px 22px rgba(0,0,0,.45);
+  --shadow-lg:0 20px 50px rgba(0,0,0,.55);
+  --shadow-inset:inset 0 1px 0 rgba(255,255,255,.06);
 }
 
-/* the cool-blue neon variant, unplugged too */
 .neon-cool.neon-cool{--neon-on:var(--star-100);--neon-glow:transparent;--neon-deep:transparent}
 .lockup.lockup{--neon-deep:transparent}
 
+/* ---------- Base ---------- */
 ::selection{background:var(--violet-500);color:var(--void-950)}
-html{scroll-behavior:smooth}
-body{letter-spacing:0}
+html{scroll-behavior:smooth;background:var(--color-bg)}
+*,*::before,*::after{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--font-body);
+  font-size:var(--text-base);
+  line-height:var(--leading-normal);
+  letter-spacing:0;
+  color:var(--color-text);
+  background:transparent;
+  -webkit-font-smoothing:antialiased;
+  animation:page-in .4s ease-out both;
+}
+@keyframes page-in{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){body{animation:none}}
 
-/* ---------- Shadow field ---------- */
+/* Background orbs must sit behind the page, not push the whole shell down. */
 .shadow-field{position:fixed;inset:0;z-index:-1;pointer-events:none;filter:blur(0px)}
 canvas.svelte-14n7v75{display:none}
 
-/* ---------- Wordmark: Kis·met, the met in fate ---------- */
-.wordmark.wordmark{font-weight:700;letter-spacing:.01em;padding-right:0}
-.wordmark.wordmark em{font-style:italic;color:var(--violet-500);--neon-on:var(--violet-500);--neon-glow:transparent;--neon-deep:transparent}
-.mark-tube svg{display:none}
-.mark-tube::before{content:"";width:1.12em;height:1.12em;background:url(/logo.png) center/contain no-repeat;image-rendering:pixelated}
+/* ---------- Scrollbars ---------- */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--void-950)}
+::-webkit-scrollbar-thumb{background:var(--void-600);border:2px solid var(--void-950);border-radius:8px}
+::-webkit-scrollbar-thumb:hover{background:var(--void-500)}
 
-/* ---------- Hero: one orchestrated materialization ---------- */
-.hero h1{transform:none;font-weight:400;font-size:clamp(2rem,5vw,3.3rem);letter-spacing:0;line-height:1.22;max-width:26ch}
+/* ---------- Focus ---------- */
+:focus-visible{outline:2px solid var(--violet-300);outline-offset:2px;border-radius:6px}
+:focus:not(:focus-visible){outline:none}
+
+/* ---------- Wordmark ---------- */
+.lockup{display:inline-flex;align-items:center;gap:.45rem;text-decoration:none;line-height:1;color:inherit}
+.lockup .mark-tube{display:inline-flex;align-items:center}
+.wordmark{font-weight:700;letter-spacing:.01em;line-height:1.1}
+.wordmark em{font-style:italic;color:var(--violet-500)}
+.mark-tube svg{display:none}
+.mark-tube::before{content:"";display:inline-block;width:1.12em;height:1.12em;background:url(/logo.png) center/contain no-repeat}
+
+/* ---------- Buttons ---------- */
+.cta,button.primary{
+  position:relative;overflow:hidden;
+  border-radius:14px;
+  background:var(--gradient-brand);
+  color:var(--color-on-primary);
+  font-weight:700;
+  box-shadow:0 6px 20px rgba(245,158,11,.3);
+  transition:transform .12s ease,filter .12s ease,box-shadow .12s ease;
+  letter-spacing:.02em;
+  cursor:pointer;
+}
+.cta::before,button.primary::before{
+  content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.2),transparent);
+  transition:left .45s ease;pointer-events:none;
+}
+.cta:hover,button.primary:hover:not(:disabled){
+  transform:translateY(-2px);
+  filter:brightness(1.05);
+  box-shadow:0 10px 28px rgba(245,158,11,.4);
+}
+.cta:hover::before,button.primary:hover::before{left:100%}
+.cta:active,button.primary:active:not(:disabled){transform:scale(.97)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+
+/* ---------- Hero / landing ---------- */
+.hero h1{font-weight:400;font-size:clamp(2rem,5vw,3.3rem);line-height:1.22;max-width:26ch}
 .hero h1 em{font-style:italic;color:var(--violet-400)}
 .hero .sub{color:var(--color-text-light)}
-
 @keyframes kismet-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-.hero .hero-brand{animation:kismet-in .45s steps(5,end) backwards}
-.hero h1{animation:kismet-in .45s steps(5,end) .12s backwards}
-.hero .sign-rule{animation:kismet-in .45s steps(5,end) .24s backwards}
-.hero .sub{animation:kismet-in .45s steps(5,end) .34s backwards}
-.hero .cta{animation:kismet-in .45s steps(5,end) .46s backwards}
-.hero .fine{animation:kismet-in .45s steps(5,end) .58s backwards}
+.hero .hero-brand{animation:kismet-in .45s ease-out backwards}
+.hero h1{animation:kismet-in .45s ease-out .12s backwards}
+.hero .sign-rule{animation:kismet-in .45s ease-out .24s backwards}
+.hero .sub{animation:kismet-in .45s ease-out .34s backwards}
+.hero .cta{animation:kismet-in .45s ease-out .46s backwards}
+.hero .fine{animation:kismet-in .45s ease-out .58s backwards}
 @media (prefers-reduced-motion:reduce){
   .hero .hero-brand,.hero h1,.hero .sign-rule,.hero .sub,.hero .cta,.hero .fine{animation:none}
 }
 
-/* pixel rule: a square-wave dash with a solid pixel heart */
-.sign-rule.sign-rule{height:4px;background:repeating-linear-gradient(90deg,var(--violet-500) 0 4px,transparent 4px 10px);opacity:.5}
-.sign-rule.sign-rule::after{width:6px;height:6px;border-radius:0;transform:translate(-50%,-50%);background:var(--violet-400);box-shadow:none}
+.sign-rule{height:2px;background:linear-gradient(90deg,transparent,var(--violet-500),transparent);opacity:.6;position:relative}
+.sign-rule::after{content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;background:var(--violet-400);transform:translate(-50%,-50%);box-shadow:0 0 12px var(--violet-400)}
+.pulse{border-radius:50%;width:8px;height:8px;background:var(--violet-500);box-shadow:0 0 8px var(--violet-500)}
 
-/* live counter: a square pixel heartbeat */
-.pulse.pulse{border-radius:0;width:7px;height:7px}
-
-/* ---------- Pixel buttons: stepped corners, hard shadow ---------- */
-.cta.cta,button.primary{
-  border-radius:0;
-  background:var(--gradient-brand);
-  color:var(--color-on-primary);
-  font-weight:var(--weight-bold);
-  clip-path:polygon(0 4px,2px 4px,2px 2px,4px 2px,4px 0,calc(100% - 4px) 0,calc(100% - 4px) 2px,calc(100% - 2px) 2px,calc(100% - 2px) 4px,100% 4px,100% calc(100% - 4px),calc(100% - 2px) calc(100% - 4px),calc(100% - 2px) calc(100% - 2px),calc(100% - 4px) calc(100% - 2px),calc(100% - 4px) 100%,4px 100%,4px calc(100% - 2px),2px calc(100% - 2px),2px calc(100% - 4px),0 calc(100% - 4px));
-  box-shadow:none;
-  filter:drop-shadow(3px 3px 0 #0000008c);
-  transition:transform .12s steps(2,end),filter .12s steps(2,end),background .12s var(--ease-out);
-  letter-spacing:.02em;
-}
-.cta.cta:hover,button.primary:hover:not(:disabled){transform:translate(-1px,-1px);filter:drop-shadow(4px 4px 0 #0000008c);box-shadow:none}
-.cta.cta:active,button.primary:active:not(:disabled){transform:scale(.97);filter:drop-shadow(0 0 0 #00000080);box-shadow:none}
-.cta.cta:focus-visible,button.primary:focus-visible{box-shadow:inset 0 0 0 2px var(--void-950),inset 0 0 0 4px var(--violet-300)}
-
-/* ---------- Pixel cards: the age gate and dialogs ---------- */
+/* ---------- Cards / panels ---------- */
 .gate .card,.scrim .panel{
-  border-radius:0;
-  clip-path:polygon(0 6px,3px 6px,3px 3px,6px 3px,6px 0,calc(100% - 6px) 0,calc(100% - 6px) 3px,calc(100% - 3px) 3px,calc(100% - 3px) 6px,100% 6px,100% calc(100% - 6px),calc(100% - 3px) calc(100% - 6px),calc(100% - 3px) calc(100% - 3px),calc(100% - 6px) calc(100% - 3px),calc(100% - 6px) 100%,6px 100%,6px calc(100% - 3px),3px calc(100% - 3px),3px calc(100% - 6px),0 calc(100% - 6px));
-  box-shadow:none;
-  filter:drop-shadow(5px 5px 0 #00000073);
+  border-radius:var(--radius-lg);
+  background:var(--color-bg-container);
+  border:1px solid var(--color-border);
+  box-shadow:var(--shadow-lg),inset 0 1px 0 rgba(255,255,255,.04);
 }
 .gate .card h2{font-weight:700;letter-spacing:0}
 .scrim .panel{border-color:var(--void-600)}
+.icon{border-radius:12px;box-shadow:var(--shadow-sm)}
 
-/* feature icon chips: square, hard-shadowed */
-.icon.icon{border-radius:0;box-shadow:2px 2px 0 #00000066}
-
-/* ---------- Editorial pages ---------- */
+/* ---------- Editorial ---------- */
 .lp h1{font-weight:700;letter-spacing:0;font-size:clamp(1.9rem,4.5vw,2.8rem);line-height:1.2}
 .lp h1 em{font-style:italic;color:var(--violet-400)}
 .legal h1{font-weight:700;letter-spacing:0}
-.country-tag.country-tag{text-transform:none;letter-spacing:0;font-style:italic;color:var(--color-text-light)}
-.prose.prose h2{letter-spacing:0}
+.country-tag{text-transform:none;letter-spacing:0;font-style:italic;color:var(--color-text-light)}
+.prose h2{letter-spacing:0}
 .faq dt{font-weight:700}
 
-/* remove mobile tap highlight and circular ripple on all buttons */
-*,*::before,*::after{-webkit-tap-highlight-color:transparent}
-button,a,[role="button"],.ka-btn,.kn-tab,.kw-tab,.kw-toggle{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-button:active,.ka-btn:active,.kn-tab:active,.kw-tab:active,.kw-toggle:active,.cta.cta:active{transform:scale(.97);transition:transform .12s ease}
+/* ---------- Interactions ---------- */
+button,a,[role="button"],.ka-btn,.kn-tab,.kw-tab,.kw-toggle{touch-action:manipulation}
+button:active,.ka-btn:active,.kn-tab:active,.kw-tab:active,.kw-toggle:active,.cta:active{transform:scale(.97);transition:transform .12s ease}
 
-/* focus: sharp pixel outline, no circular slop */
-:focus-visible{box-shadow:none !important;outline:2px solid var(--violet-300) !important;outline-offset:2px !important;border-radius:0 !important}
-:focus:not(:focus-visible){outline:none}
+/* ---------- Nav tabs ---------- */
+.kn-tab,.ka-tab{transition:color .15s ease,transform .12s ease}
+.kn-tab:active,.ka-tab:active{transform:scale(.95)}
 
-/* button hover: uiverse-style shine sweep */
-.cta.cta,button.primary{position:relative;overflow:hidden}
-.cta.cta::before,button.primary::before{content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);transition:left .4s ease}
-.cta.cta:hover::before,button.primary:hover::before{left:100%}
+/* ---------- Inputs ---------- */
+.ka-input:focus,.kw-input:focus,.kw-msg:focus{
+  border-color:var(--color-primary);
+  box-shadow:0 0 0 3px rgba(245,158,11,.18);
+  outline:none;
+  transition:border-color .15s,box-shadow .15s;
+}
 
-/* ---------- page load fade-in ---------- */
-@keyframes page-in{from{opacity:0}to{opacity:1}}
-body{animation:page-in .5s ease-out both}
-@media (prefers-reduced-motion:reduce){body{animation:none}}
-
-/* ---------- card hover lift ---------- */
-.ka-row,.kw-friend,.ka-card{transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
-.ka-row:hover,.kw-friend:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.25);border-color:var(--color-primary,#f59e0b)}
-
-/* ---------- modal/panel slide-up entrance ---------- */
+/* ---------- Panels ---------- */
 @keyframes panel-in{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
 .ka-panel,.kw-panel,.scrim .panel{animation:panel-in .25s cubic-bezier(.22,1,.36,1) both}
 @media (prefers-reduced-motion:reduce){.ka-panel,.kw-panel,.scrim .panel{animation:none}}
 
-/* ---------- input focus glow ---------- */
-.ka-input:focus,.kw-input:focus,.kw-msg:focus{border-color:var(--color-primary,#f59e0b);box-shadow:0 0 0 2px rgba(245,158,11,.15);outline:none;transition:border-color .15s,box-shadow .15s}
-
-/* ---------- nav tab smooth transition ---------- */
-.kn-tab,.ka-tab{transition:color .15s ease,transform .12s ease}
-.kn-tab:active,.ka-tab:active{transform:scale(.95)}
-
-/* ---------- list item stagger ---------- */
-.ka-row{animation:kismet-in .35s steps(4,end) backwards}
-.ka-row:nth-child(1){animation-delay:.05s}
-.ka-row:nth-child(2){animation-delay:.1s}
-.ka-row:nth-child(3){animation-delay:.15s}
-.ka-row:nth-child(4){animation-delay:.2s}
-.ka-row:nth-child(5){animation-delay:.25s}
+/* ---------- List stagger ---------- */
+@keyframes list-item-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.ka-row{animation:list-item-in .35s ease-out backwards}
+.ka-row:nth-child(1){animation-delay:.04s}
+.ka-row:nth-child(2){animation-delay:.08s}
+.ka-row:nth-child(3){animation-delay:.12s}
+.ka-row:nth-child(4){animation-delay:.16s}
+.ka-row:nth-child(5){animation-delay:.2s}
 @media (prefers-reduced-motion:reduce){.ka-row{animation:none}}
 
-/* ---------- smooth scroll ---------- */
-html{scroll-behavior:smooth}
+/* ---------- Hover lift ---------- */
+.ka-row,.kw-friend,.ka-card{transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+.ka-row:hover,.kw-friend:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.3);border-color:var(--color-primary)}
 
-/* ---------- better scrollbar ---------- */
-::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-track{background:var(--void-950,#070a14)}
-::-webkit-scrollbar-thumb{background:var(--void-600,#313b5e);border:2px solid var(--void-950,#070a14);border-radius:4px}
-::-webkit-scrollbar-thumb:hover{background:var(--void-500,#404c74)}
+/* ---------- Footer ---------- */
+footer[class]{border-top:1px solid var(--void-700)}
+footer[class]::after{content:"Crafted by exu code";margin-left:auto;font-size:var(--text-xs);color:var(--color-text-faint);letter-spacing:.06em;opacity:.7}
 
-/* ---------- image hover zoom (profile photo) ---------- */
+/* ---------- Photo zoom ---------- */
 #photo-wrap img{transition:transform .3s ease}
 #photo-wrap:hover img{transform:scale(1.05)}
-
-/* ---------- quiet chrome ---------- */
-footer[class]{border-top-color:var(--void-700)}
-footer[class]::after{content:"Crafted by exu code";margin-left:auto;font-size:var(--text-xs);color:var(--color-text-faint);letter-spacing:.06em;opacity:.7}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-track{background:var(--void-950)}
-::-webkit-scrollbar-thumb{background:var(--void-600);border:2px solid var(--void-950)}
-::-webkit-scrollbar-thumb:hover{background:var(--void-500)}

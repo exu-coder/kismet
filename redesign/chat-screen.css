@@ -1,0 +1,441 @@
+/* ============================================================
+   KISMET — focused chat screen.
+   Full-bleed, rounded, soft-shadow. No hard reset.
+   ============================================================ */
+
+[hidden]{display:none !important}
+
+/* ---------- Layout ---------- */
+html,body{height:100%;margin:0;padding:0;overflow:hidden}
+html body{padding-bottom:0 !important}
+html body .kismet-nav{display:none !important}
+
+.shell.full-bleed{
+  display:flex;flex-direction:column;
+  height:100dvh;min-height:0;
+}
+.shell.full-bleed main{flex:1;min-height:0;display:flex}
+.shell.full-bleed .content{flex:1;min-height:0;width:100%;display:flex;flex-direction:column}
+.content.cs-page{max-width:none;width:100%;margin:0;padding:0}
+.cs-heading{display:none}
+
+.shell.full-bleed > header{
+  flex:none;display:flex;align-items:center;
+  padding:.55rem .9rem .1rem;line-height:1;
+}
+.shell.full-bleed > header .lockup{display:inline-flex;align-items:center;gap:.45rem}
+.shell.full-bleed > header .wordmark{font-size:1.05rem;line-height:1}
+
+.cs-app{
+  display:flex;flex-direction:column;flex:1;min-height:0;width:100%;
+  background:var(--color-bg, #070a14);
+  border-radius:0;
+  overflow:hidden;
+  position:relative;
+}
+
+/* ---------- Top bar ---------- */
+.cs-topbar{
+  display:flex;align-items:center;gap:.5rem;
+  min-height:54px;padding:.35rem .6rem;
+  padding-top:calc(.35rem + env(safe-area-inset-top,0px));
+  background:transparent;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.cs-icon-btn{
+  width:38px;height:38px;flex:0 0 38px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:transparent;border-radius:50%;
+  color:var(--color-text,#efe8d6);cursor:pointer;
+  transition:background .15s ease;
+}
+.cs-icon-btn:hover{background:rgba(245,158,11,.14)}
+.cs-icon-btn svg{width:18px;height:18px}
+
+.cs-call-actions{display:flex;align-items:center;gap:.15rem;margin-left:auto}
+.cs-call-actions[hidden]{display:none !important}
+
+.cs-thread-title{
+  flex:1;min-width:0;
+  font-weight:700;font-size:1.28rem;line-height:1.2;
+  color:var(--color-text,#efe8d6);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+.cs-identity{
+  flex:1;min-width:0;
+  display:flex;align-items:center;gap:.5rem;
+  padding:.15rem .3rem;border-radius:12px;
+  background:transparent;border:0;color:inherit;
+  text-align:left;cursor:pointer;
+  transition:background .15s ease;
+}
+.cs-identity:hover{background:rgba(245,158,11,.1)}
+.cs-identity__text{display:flex;flex-direction:column;min-width:0}
+.cs-identity__name{
+  font-weight:700;font-size:.95rem;
+  color:var(--color-text,#efe8d6);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.cs-identity__meta{
+  font-size:.7rem;
+  color:var(--color-text-faint,#9c97ad);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* ---------- Threads list ---------- */
+.cs-threads{
+  flex:1;min-height:0;overflow-y:auto;
+  display:flex;flex-direction:column;gap:.5rem;
+  padding:.75rem .8rem;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.cs-thread{
+  display:flex;align-items:stretch;min-height:70px;
+  background:rgba(12,16,31,.78);
+  border:1px solid var(--color-border,#232b47);
+  border-radius:16px;
+  box-shadow:0 4px 16px rgba(0,0,0,.18);
+  transition:transform .15s ease,background .15s ease,border-color .15s ease,box-shadow .15s ease;
+}
+.cs-thread:hover{
+  background:rgba(21,27,48,.95);
+  border-color:rgba(245,158,11,.38);
+  transform:translateY(-1px);
+  box-shadow:0 8px 22px rgba(0,0,0,.28);
+}
+.cs-thread:active{transform:scale(.995)}
+.cs-thread__person,.cs-thread__chat{
+  display:flex;align-items:center;gap:.65rem;
+  padding:.55rem .7rem;
+  background:transparent;border:0;color:inherit;
+  text-align:left;cursor:pointer;min-width:0;
+}
+.cs-thread__person{flex:1;max-width:58%;min-width:0}
+.cs-thread__chat{flex:0 1 auto;justify-content:flex-end;gap:.55rem;min-width:0;max-width:42%}
+.cs-thread__person:hover .cs-thread__name{color:var(--color-primary,#f59e0b)}
+.cs-thread__body{display:flex;flex-direction:column;min-width:0;gap:.1rem}
+.cs-thread__name{
+  font-weight:700;font-size:.94rem;
+  color:var(--color-text,#efe8d6);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.cs-thread__code,.cs-thread__preview{
+  font-size:.75rem;color:var(--color-text-faint,#9c97ad);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.cs-thread__preview{max-width:15rem;color:var(--color-text-light,#b6b1c4)}
+.cs-thread__side{display:flex;flex-direction:column;align-items:flex-end;gap:.3rem;min-width:0}
+.cs-thread__time{font-size:.7rem;color:var(--color-text-faint,#9c97ad)}
+.cs-thread__chev{width:17px;height:17px;color:var(--color-primary,#f59e0b)}
+.cs-empty{
+  margin:auto;padding:1rem;
+  color:var(--color-text-light,#b6b1c4);
+  text-align:center;background:transparent;
+}
+
+/* ---------- Chat view ---------- */
+.cs-conversation{
+  position:relative;flex:1;min-height:0;
+  display:flex;flex-direction:column;
+}
+.cs-messages{
+  flex:1;min-height:0;overflow-y:auto;
+  display:flex;flex-direction:column;gap:.42rem;
+  padding:.75rem .7rem .6rem;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.cs-messages::-webkit-scrollbar{width:6px}
+.cs-messages::-webkit-scrollbar-thumb{background:rgba(245,158,11,.35);border-radius:6px}
+
+.cs-day,.cs-system{
+  align-self:center;margin:.25rem 0;
+  padding:.25rem .7rem;
+  border-radius:10px;
+  background:rgba(255,255,255,.05);
+  color:var(--color-text-faint,#9c97ad);
+  font-size:.7rem;
+}
+.cs-system{color:var(--color-primary,#f59e0b)}
+
+.cs-bubble-row{display:flex;align-items:flex-end;gap:.45rem;max-width:100%}
+.cs-bubble-row.mine{justify-content:flex-end}
+.cs-msg-avatar{
+  flex:0 0 26px;width:26px;height:26px;
+  padding:0;background:transparent;border:0;cursor:pointer;
+  border-radius:50%;overflow:hidden;
+}
+.cs-msg-avatar .km-avatar{--km-avatar-size:26px}
+.cs-spacer{flex:0 0 26px;width:26px}
+
+.cs-bubble{
+  position:relative;
+  max-width:min(76%,32rem);
+  padding:.5rem .75rem .35rem;
+  font-size:.9rem;line-height:1.42;
+  white-space:pre-wrap;overflow-wrap:anywhere;
+  border-radius:16px;
+}
+.cs-bubble.them{
+  background:rgba(34,41,68,.75);
+  color:var(--color-text,#efe8d6);
+  border-bottom-left-radius:4px;
+  border:1px solid rgba(255,255,255,.05);
+}
+.cs-bubble.mine{
+  background:linear-gradient(135deg,#f59e0b,#d97706);
+  color:#140e22;
+  border-bottom-right-radius:4px;
+}
+.cs-bubble__text{display:block}
+.cs-bubble__time{
+  display:block;margin-top:.2rem;
+  text-align:right;font-size:.63rem;opacity:.65;
+}
+
+.cs-jump{
+  position:absolute;right:.8rem;bottom:4.5rem;
+  width:40px;height:40px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(12,16,31,.92);
+  color:var(--color-primary,#f59e0b);
+  cursor:pointer;
+  box-shadow:0 6px 20px rgba(0,0,0,.5);
+  transition:transform .15s ease;
+}
+.cs-jump:hover{transform:translateY(-2px)}
+.cs-jump svg{width:18px;height:18px}
+
+/* ---------- Composer ---------- */
+.cs-compose{
+  display:flex;align-items:center;gap:.45rem;
+  padding:.55rem .65rem;
+  padding-bottom:calc(.55rem + env(safe-area-inset-bottom,0px));
+  background:transparent;
+  border-top:1px solid rgba(255,255,255,.06);
+}
+.cs-input{
+  flex:1;min-width:0;height:42px;
+  padding:0 1rem;
+  background:rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:22px;
+  color:var(--color-text,#efe8d6);
+  font:inherit;font-size:.9rem;
+  outline:none;
+  transition:border-color .15s ease,background .15s ease,box-shadow .15s ease;
+}
+.cs-input::placeholder{color:#8e8aa2}
+.cs-input:focus{
+  background:rgba(245,158,11,.07);
+  border-color:rgba(245,158,11,.5);
+  box-shadow:0 0 0 3px rgba(245,158,11,.15);
+}
+
+.cs-send{
+  width:42px;height:42px;flex:0 0 42px;
+  border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#f59e0b,#d97706);
+  border:0;color:#140e22;cursor:pointer;
+  box-shadow:0 6px 18px rgba(245,158,11,.35);
+  transition:transform .15s ease,filter .15s ease;
+}
+.cs-send:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.cs-send:active{transform:scale(.92)}
+.cs-send:disabled{opacity:.5;cursor:not-allowed}
+.cs-send svg{width:18px;height:18px}
+
+.cs-emoji-btn{
+  flex:0 0 38px;width:38px;height:38px;
+  border-radius:50%;
+}
+.cs-emoji-btn.act{
+  background:rgba(245,158,11,.22);
+  color:var(--color-primary,#f59e0b);
+}
+
+/* ---------- Profile overlay ---------- */
+.cs-profile-overlay{
+  position:fixed;inset:0;z-index:60;
+  display:flex;align-items:center;justify-content:center;
+  padding:1rem;
+  background:rgba(3,5,12,.72);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+}
+.cs-profile-card{
+  width:100%;max-width:18rem;
+  padding:1.2rem 1rem 1rem;
+  text-align:center;
+  background:var(--color-bg-container,#0c101f);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:20px;
+  box-shadow:0 24px 60px rgba(0,0,0,.6);
+  animation:cs-rise .24s cubic-bezier(.2,.9,.3,1.2);
+}
+@keyframes cs-rise{from{opacity:0;transform:translateY(12px) scale(.98)}}
+.cs-profile-avatar{
+  width:72px;height:72px;margin:0 auto .75rem;
+  border-radius:50%;overflow:hidden;
+  display:grid;place-items:center;
+  background:linear-gradient(135deg,#f59e0b,#b45309);
+}
+.cs-profile-avatar .km-avatar{--km-avatar-size:72px;border:0}
+.cs-profile-name{
+  margin:0;font-size:1.05rem;
+  color:var(--color-text,#efe8d6);
+  word-break:break-word;
+}
+.cs-profile-meta{
+  margin:.25rem 0 0;font-size:.72rem;
+  color:var(--color-text-faint,#9c97ad);
+}
+.cs-profile-actions{display:flex;flex-direction:column;gap:.45rem;margin-top:.9rem}
+.cs-primary,.cs-secondary{
+  min-height:40px;font-size:.86rem;font-weight:700;
+  cursor:pointer;border-radius:12px;
+  display:inline-flex;align-items:center;justify-content:center;gap:.45rem;
+  border:0;
+  transition:transform .15s ease,filter .15s ease;
+}
+.cs-primary{background:linear-gradient(135deg,#f59e0b,#d97706);color:#140e22}
+.cs-primary:hover{filter:brightness(1.05)}
+.cs-secondary{background:rgba(255,255,255,.06);color:var(--color-text,#efe8d6);border:1px solid rgba(255,255,255,.08)}
+.cs-secondary:hover{background:rgba(255,255,255,.1)}
+.cs-profile-actions svg{width:17px;height:17px}
+
+/* ---------- Emoji picker ---------- */
+#emoji-picker{
+  position:fixed;z-index:65;display:none;
+  flex-direction:column;
+  width:min(94vw,360px);height:min(60vh,400px);
+  background:#0c101f;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  overflow:hidden;
+  box-shadow:0 24px 60px rgba(0,0,0,.7);
+}
+#emoji-picker.on{display:flex}
+
+.ke-head{display:flex;align-items:center;gap:.4rem;padding:.7rem .7rem .5rem;flex:none}
+.ke-head input{
+  flex:1;min-width:0;height:36px;
+  padding:0 .75rem;
+  background:rgba(0,0,0,.38);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:18px;
+  color:var(--color-text,#efe8d6);
+  font:inherit;font-size:.82rem;
+  outline:none;
+  transition:border-color .15s,background .15s;
+}
+.ke-head input::placeholder{color:#8e8aa2}
+.ke-head input:focus{
+  background:rgba(245,158,11,.09);
+  border-color:rgba(245,158,11,.5);
+}
+.ke-close{
+  width:34px;height:34px;flex:0 0 34px;
+  border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.06);
+  color:var(--color-text,#efe8d6);
+  cursor:pointer;
+  transition:background .15s;
+}
+.ke-close:hover{background:rgba(245,158,11,.16)}
+.ke-close svg{width:15px;height:15px}
+
+.ke-tabs{
+  display:flex;gap:.2rem;
+  overflow-x:auto;
+  padding:0 .6rem .5rem;
+  flex:none;
+  scrollbar-width:none;
+}
+.ke-tabs::-webkit-scrollbar{display:none}
+.ke-tabs button{
+  width:32px;height:32px;flex:0 0 32px;
+  border-radius:9px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.06);
+  color:var(--color-text,#efe8d6);
+  font-size:17px;cursor:pointer;
+  transition:background .15s ease,color .15s ease;
+}
+.ke-tabs button:hover{background:rgba(245,158,11,.16)}
+.ke-tabs button.on{
+  background:var(--color-primary,#f59e0b);
+  color:#140e22;
+}
+
+.ke-grid{
+  display:grid;grid-template-columns:repeat(8,1fr);gap:1px;
+  overflow-y:auto;overscroll-behavior:contain;
+  padding:.1rem .5rem .5rem;
+  flex:1;min-height:0;
+}
+.ke-grid button{
+  aspect-ratio:1;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:transparent;
+  border-radius:7px;
+  color:inherit;font-size:21px;line-height:1;cursor:pointer;
+  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;
+  transition:background .1s ease,transform .08s ease;
+}
+.ke-grid button:hover{background:rgba(245,158,11,.16);transform:scale(1.12)}
+.ke-grid button:active{transform:scale(.9)}
+.ke-none{
+  grid-column:1/-1;padding:1.2rem .5rem;
+  text-align:center;
+  color:var(--color-text-faint,#9c97ad);
+  font-size:.8rem;
+}
+.ke-hint{
+  flex:none;padding:.4rem .5rem .55rem;
+  text-align:center;
+  color:var(--color-text-faint,#9c97ad);
+  font-size:.68rem;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;
+}
+
+/* ---------- Desktop polish ---------- */
+@media (min-width:760px){
+  .shell.full-bleed > header{padding:.75rem 1.4rem .2rem}
+  .cs-app{
+    max-width:66rem;margin:0 auto;
+    border:0;box-shadow:none;
+    background:transparent;
+  }
+  .cs-threads{padding:1rem 1.4rem}
+  .cs-thread{margin-bottom:0}
+  .cs-thread__person{max-width:52%}
+  .cs-thread__chat{max-width:44%}
+  .cs-thread__preview{max-width:18rem}
+  .cs-messages{padding:1.35rem 1.6rem 1rem}
+  .cs-compose{padding:.8rem 1.4rem calc(.8rem + env(safe-area-inset-bottom,0px))}
+  .cs-bubble-row{max-width:52rem}
+  .cs-bubble{font-size:.94rem}
+  .cs-jump{right:1.4rem}
+  .cs-profile-card{max-width:20rem}
+  #emoji-picker{width:min(94vw,380px);height:min(58vh,420px)}
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width:560px){
+  .cs-topbar{min-height:50px;padding-left:.45rem;padding-right:.45rem}
+  .cs-threads{padding:.25rem .4rem}
+  .cs-thread__person{max-width:58%}
+  .cs-thread__chat{padding-right:.4rem}
+  .cs-thread__preview{max-width:8rem}
+  .cs-messages{padding:.65rem .5rem .5rem}
+  .cs-bubble{max-width:84%}
+  .cs-compose{padding-left:.45rem;padding-right:.45rem}
+}
+@media (prefers-reduced-motion:reduce){
+  .cs-thread,.cs-icon-btn,.cs-identity,.cs-send{transition:none}
+  .cs-profile-card{animation:none}
+}

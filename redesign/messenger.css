@@ -1,0 +1,167 @@
+/* ============================================================
+   Messenger-style revealed-friend UI
+   Scoped to requests, chat and inbox. Loaded after theme.css.
+   ============================================================ */
+
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ---------- Avatars ---------- */
+.km-avatar{
+  --km-avatar-size:44px;
+  width:var(--km-avatar-size);height:var(--km-avatar-size);
+  flex:0 0 var(--km-avatar-size);
+  border-radius:50%;overflow:hidden;
+  display:inline-grid;place-items:center;
+  background:linear-gradient(145deg,#f59e0b,#b45309);
+  color:#140e22;
+  border:1px solid rgba(245,158,11,.5);
+  line-height:1;user-select:none;
+}
+.km-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.km-avatar__initials{grid-area:1/1;font-weight:800;font-size:calc(var(--km-avatar-size) * .36);letter-spacing:.02em}
+
+/* ---------- Empty state ---------- */
+.km-empty{
+  padding:1.25rem;
+  border:1px dashed var(--color-border,#2b3354);
+  border-radius:var(--radius-md,14px);
+  background:var(--color-bg-container,#0c101f);
+  color:var(--color-text-light,#b6b1c4);
+  font-size:.92rem;
+}
+
+/* ---------- Rows ---------- */
+.km-list{display:flex;flex-direction:column;gap:.6rem}
+.km-row{
+  display:block;width:100%;padding:0;
+  border:1px solid var(--color-border,#2b3354);
+  border-radius:var(--radius-md,14px);
+  background:var(--color-bg-container,#0c101f);
+  color:inherit;
+  transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease;
+}
+.km-row:hover,.km-row:focus-visible{
+  border-color:var(--color-primary,#f59e0b);
+}
+.km-row:hover{
+  transform:translateY(-1px);
+  box-shadow:0 6px 18px rgba(0,0,0,.35);
+}
+.km-row__btn,.km-row__main{
+  width:100%;min-height:64px;
+  display:flex;align-items:center;gap:.8rem;
+  padding:.7rem .8rem;
+  text-align:left;background:transparent;border:0;color:inherit;
+}
+.km-row__btn{cursor:pointer}
+.km-row__body{min-width:0;flex:1;display:flex;flex-direction:column;gap:.18rem}
+.km-row__line{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem}
+.km-row__name{font-weight:700;font-size:1rem;color:var(--color-text,#efe8d6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.km-row__time{flex:0 0 auto;font-size:.72rem;color:var(--color-text-faint,#9c97ad)}
+.km-row__meta{font-size:.78rem;color:var(--color-text-faint,#9c97ad);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.km-row__preview{font-size:.84rem;color:var(--color-text-light,#b6b1c4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.km-chevron{flex:0 0 auto;width:20px;height:20px;color:var(--color-primary,#f59e0b)}
+
+/* ---------- Actions ---------- */
+.km-actions{
+  display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;
+  padding:0 .8rem .8rem calc(.8rem + 44px + .8rem);
+}
+.km-action{
+  min-height:44px;
+  display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
+  padding:.5rem .9rem;
+  border:1px solid var(--color-border,#2b3354);
+  border-radius:var(--radius-sm,10px);
+  background:var(--color-bg-raised,#151b30);
+  color:var(--color-text,#efe8d6);
+  font:inherit;font-weight:600;cursor:pointer;
+  transition:background .15s ease,border-color .15s ease;
+}
+.km-action:hover:not(:disabled){
+  background:var(--color-bg-hover,#1d2540);
+  border-color:var(--color-primary,#f59e0b);
+}
+.km-action:disabled{opacity:.55;cursor:not-allowed}
+.km-action.primary{background:var(--color-primary,#f59e0b);border-color:var(--color-primary,#f59e0b);color:#140e22}
+.km-action.primary:hover:not(:disabled){background:#fbbf24}
+.km-action.danger{color:#fca5a5;border-color:#7f1d1d}
+
+/* ---------- Chat header (legacy) ---------- */
+.km-chat-header{
+  display:flex;align-items:center;gap:.75rem;
+  padding:.75rem;margin-bottom:.75rem;
+  border:1px solid var(--color-border,#2b3354);
+  border-radius:var(--radius-md,14px);
+  background:var(--color-bg-container,#0c101f);
+}
+.km-chat-header__text{display:flex;flex-direction:column;gap:.12rem;min-width:0}
+.km-chat-header__name{font-weight:700;font-size:1.05rem;color:var(--color-text,#efe8d6)}
+.km-chat-header__meta{font-size:.76rem;color:var(--color-text-faint,#9c97ad)}
+
+/* ---------- Back ---------- */
+.km-back{
+  min-height:44px;
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.45rem .6rem;margin-bottom:.75rem;
+  background:transparent;
+  border:1px solid var(--color-border,#2b3354);
+  border-radius:var(--radius-sm,10px);
+  color:var(--color-text,#efe8d6);
+  font:inherit;cursor:pointer;
+}
+.km-back:hover{border-color:var(--color-primary,#f59e0b)}
+.km-back svg{width:18px;height:18px;flex:0 0 auto}
+
+/* ---------- Messages (legacy) ---------- */
+.km-messages{
+  min-height:12rem;max-height:42vh;overflow-y:auto;
+  display:flex;flex-direction:column;gap:.65rem;
+  padding:.85rem;margin-bottom:.65rem;
+  border:1px solid var(--color-border,#2b3354);
+  border-radius:var(--radius-md,14px);
+  background:var(--color-bg-container,#0c101f);
+}
+.km-bubble-row{display:flex;align-items:flex-end;gap:.5rem;max-width:100%}
+.km-bubble-row.mine{justify-content:flex-end}
+.km-bubble-row.them .km-avatar{--km-avatar-size:28px}
+.km-bubble{
+  max-width:min(78%,34rem);
+  padding:.55rem .75rem;
+  border-radius:14px;
+  font-size:.9rem;line-height:1.45;
+  overflow-wrap:anywhere;white-space:pre-wrap;
+}
+.km-bubble.mine{background:var(--color-primary,#f59e0b);color:#140e22;border-bottom-right-radius:4px}
+.km-bubble.them{
+  background:var(--color-bg-raised,#151b30);color:var(--color-text,#efe8d6);
+  border:1px solid var(--color-border,#2b3354);
+  border-bottom-left-radius:4px;
+}
+
+/* ---------- Composer ---------- */
+.km-composer{display:flex;gap:.5rem;align-items:stretch}
+.km-composer .ka-input{min-height:44px;flex:1;min-width:0}
+.km-composer .km-action{min-height:44px}
+
+/* ---------- Reveal card ---------- */
+.km-reveal-card{
+  display:flex;align-items:center;gap:.7rem;
+  padding:.6rem;margin:.6rem 0;
+  border:1px solid var(--color-border,#2b3354);
+  border-radius:var(--radius-md,14px);
+  background:var(--color-bg-container,#0c101f);
+}
+.km-reveal-card__text{display:flex;flex-direction:column;gap:.12rem;min-width:0}
+.km-reveal-card__name{font-weight:700;color:var(--color-text,#efe8d6)}
+.km-reveal-card__meta{font-size:.76rem;color:var(--color-text-faint,#9c97ad)}
+
+/* ---------- Responsive ---------- */
+@media (max-width:520px){
+  .km-actions{padding-left:.8rem}
+  .km-bubble{max-width:85%}
+}
+@media (prefers-reduced-motion:reduce){
+  .km-row,.km-action,.km-back{transition:none;transform:none}
+  .km-row:hover{transform:none;box-shadow:none}
+}
