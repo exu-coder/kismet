@@ -12,9 +12,10 @@
   <script src="/redesign/pixels.js" defer></script>
   <script src="/redesign/nav.js" defer></script>
   <style>
-    .nf{max-width:34rem;margin:0 auto;padding:4rem 1.5rem 7rem;text-align:center}
-    .nf-code{font-size:clamp(3.5rem,14vw,6rem);line-height:1;margin:0;color:var(--color-primary,#f59e0b)}
-    .nf h1{font-size:clamp(1.4rem,4vw,2rem);margin:1rem 0 .75rem;color:var(--color-text,#efe8d6)}
+    .nf{max-width:40rem;margin:0 auto;padding:2rem 1.5rem 7rem;text-align:center}
+    .nf-code{font-size:clamp(4rem,16vw,7rem);line-height:1;margin:0 0 .5rem;color:var(--color-primary,#f59e0b);font-weight:800;letter-spacing:-.02em}
+    .nf-gif{width:100%;max-width:480px;height:auto;border-radius:12px;margin:0 auto 1.5rem;display:block;border:1px solid var(--color-border,#232b47)}
+    .nf h1{font-size:clamp(1.4rem,4vw,2rem);margin:0 0 .75rem;color:var(--color-text,#efe8d6)}
     .nf p{margin:0 0 2rem;color:var(--color-text-light,#b6b1c4)}
     .nf-actions{display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center}
     .nf a.btn{display:inline-block;padding:.7rem 1.4rem;border-radius:999px;text-decoration:none;font-weight:700}
@@ -31,8 +32,9 @@
   </header>
   <main class="nf">
     <p class="nf-code">404</p>
+    <img class="nf-gif" src="/404-animation.gif" alt="Lost in space — page not found" width="800" height="600" loading="lazy" />
     <h1>This page drifted away</h1>
-    <p>The link you followed doesn’t exist. Someone new is probably waiting on the other side, though.</p>
+    <p>The link you followed doesn't exist. Someone new is probably waiting on the other side, though.</p>
     <div class="nf-actions">
       <a class="btn primary" href="/chat">Start a video chat</a>
       <a class="btn ghost" href="/">Go home</a>
