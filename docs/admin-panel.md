@@ -1,9 +1,8 @@
 # Kismet admin panel
 
-The moderation dashboard is served from its own Cloudflare Pages project (`kismet-admin`) at **https://kissmeet.pages.dev.see.you.com/**. It is deliberately unlinked from the public site: no nav item, footer link, sitemap entry, `robots.txt` rule or public-page mention. The only way in is typing the hostname directly.
+The moderation dashboard is at **https://kissmeet.pages.dev/see.you.com/**. It is deliberately unlinked from the public site: no nav item, footer link, sitemap entry, `robots.txt` rule or public-page mention. The only way in is typing the path directly.
 
-> The hostname needs a DNS CNAME at `see.you.com`:
-> `kissmeet.pages.dev.see.you.com → kismet-admin-5sw.pages.dev`. Until that record exists, Cloudflare shows the domain as pending.
+No DNS or custom domain is needed. Source files live in `see.you.com/`.
 
 The page is static and talks to Supabase only through server-side RPCs. No admin key, service-role key or moderation table is exposed to the browser.
 
@@ -21,7 +20,7 @@ Access is decided entirely by `public.kismet_is_admin()` on the server. Email/pa
    ```
 
    The check is case-insensitive and compares the JWT `email` claim, so the Auth user's email and this row must match.
-3. Open https://kissmeet.pages.dev.see.you.com/, sign in with that email and password. The panel calls `kismet_is_admin()` after every sign-in and when restoring an existing session. Non-admins are signed out and see a clean "Admin access required" screen with no moderation data or RPC calls.
+3. Open https://kissmeet.pages.dev/see.you.com/, sign in with that email and password. The panel calls `kismet_is_admin()` after every sign-in and when restoring an existing session. Non-admins are signed out and see a clean "Admin access required" screen with no moderation data or RPC calls.
 
 To revoke access, delete the allowlist row; no redeploy is needed. Do not add sign-up, magic-link, OAuth or password-reset UI to this page.
 
