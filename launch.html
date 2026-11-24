@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kismet — Launch</title>
+  <meta name="robots" content="noindex, follow" />
+  <meta name="theme-color" content="#070a14" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="icon" href="/favicon.png" type="image/png" />
+  <style>
+    :root{--bg:#070a14;--amber:#f59e0b;--cream:#efe8d6;--muted:#b6b1c4;--border:#232b47}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;background:var(--bg);color:var(--cream);font-family:'Tinos',Georgia,serif;overflow:hidden}
+    .stage{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;padding:2rem;text-align:center}
+    .stars{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+    .star{position:absolute;width:2px;height:2px;background:#fff;border-radius:50%;opacity:.6;animation:twinkle 3s ease-in-out infinite}
+    @keyframes twinkle{0%,100%{opacity:.2;transform:scale(1)}50%{opacity:1;transform:scale(1.6)}}
+    .logo{width:clamp(96px,18vw,160px);height:auto;filter:drop-shadow(0 0 24px rgba(245,158,11,.55));animation:pop .9s cubic-bezier(.2,.9,.3,1.2) both, glow 2.4s ease-in-out 1s infinite}
+    @keyframes pop{0%{opacity:0;transform:scale(.4) rotate(-8deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+    @keyframes glow{0%,100%{filter:drop-shadow(0 0 24px rgba(245,158,11,.55))}50%{filter:drop-shadow(0 0 44px rgba(245,158,11,.9))}}
+    .wordmark{font-size:clamp(2.6rem,8vw,5.5rem);font-weight:700;letter-spacing:.02em;color:var(--amber);opacity:0;animation:fadeUp .9s .6s forwards}
+    .tag{font-size:clamp(1rem,2.4vw,1.5rem);color:var(--cream);opacity:0;animation:fadeUp .9s 1.2s forwards}
+    .line{font-size:clamp(1.1rem,2.6vw,1.7rem);color:var(--cream);opacity:0;transform:translateY(12px);animation:fadeUp .7s forwards}
+    .l1{animation-delay:2.4s}.l2{animation-delay:3.6s}.l3{animation-delay:4.8s}.l4{animation-delay:6.0s}
+    @keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
+    .url{font-size:clamp(.9rem,2vw,1.2rem);color:var(--amber);opacity:0;animation:fadeUp .7s 7.4s forwards;letter-spacing:.04em}
+    .cta{margin-top:.6rem;padding:.85rem 2rem;border-radius:999px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#0c101f;font-weight:800;font-size:1.05rem;text-decoration:none;opacity:0;animation:fadeUp .7s 8.2s forwards;box-shadow:0 8px 28px rgba(245,158,11,.35)}
+    .cta:hover{filter:brightness(1.08)}
+    .replay{position:fixed;bottom:1.2rem;right:1.2rem;padding:.5rem 1rem;border-radius:999px;border:1px solid var(--border);background:rgba(12,16,31,.7);color:var(--cream);font-size:.85rem;cursor:pointer;opacity:0;animation:fadeUp .6s 9s forwards}
+    .replay:hover{border-color:var(--amber);color:var(--amber)}
+    .badge{display:inline-flex;align-items:center;gap:.4rem;font-size:.85rem;color:var(--muted);opacity:0;animation:fadeUp .7s 7.0s forwards}
+    .badge svg{width:16px;height:16px}
+  </style>
+</head>
+<body>
+  <div class="stars" id="stars"></div>
+  <div class="stage" id="stage">
+    <img class="logo" src="/favicon.svg" alt="Kismet" />
+    <div class="wordmark">Kismet</div>
+    <div class="tag">Someone new in seconds.</div>
+    <div class="line l1">Free random video chat</div>
+    <div class="line l2">No account needed</div>
+    <div class="line l3">Face to face, instantly</div>
+    <div class="line l4">Actively moderated</div>
+    <div class="badge">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+      18+ · camera required · be kind
+    </div>
+    <div class="url">kissmeet.pages.dev</div>
+    <a class="cta" href="/chat">Jump in</a>
+  </div>
+  <button class="replay" id="replay">Replay</button>
+  <script>
+    // scatter stars
+    const s = document.getElementById('stars');
+    for (let i=0;i<60;i++){
+      const d=document.createElement('div');
+      d.className='star';
+      d.style.left=Math.random()*100+'%';
+      d.style.top=Math.random()*100+'%';
+      d.style.animationDelay=(Math.random()*3)+'s';
+      d.style.opacity=(.2+Math.random()*.6).toFixed(2);
+      s.appendChild(d);
+    }
+    const stage=document.getElementById('stage');
+    function replay(){
+      // restart all animations by cloning
+      const clone=stage.cloneNode(true);
+      stage.parentNode.replaceChild(clone,stage);
+      // re-bind reference not needed
+    }
+    document.getElementById('replay').addEventListener('click',()=>location.reload());
+  </script>
+</body>
+</html>
