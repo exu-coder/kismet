@@ -51,6 +51,7 @@
     <a class="cta" href="/chat">Jump in</a>
   </div>
   <audio id="vo" src="/voiceover.wav" autoplay preload="auto"></audio>
+  <audio id="bg" src="/background.wav" autoplay loop preload="auto" volume="0.18"></audio>
   <button class="replay" id="replay">Replay</button>
   <script>
     // scatter stars
@@ -72,7 +73,15 @@
       // re-bind reference not needed
     }
     const vo=document.getElementById('vo');
-    const tryPlay=()=>{vo.play().catch(()=>{showPlayHint();});};
+    const bg=document.getElementById('bg');
+    bg.volume=0.18;
+    const tryPlay=()=>{vo.play().catch(()=>{showPlayHint();}); bg.play().catch(()=>{});};
+    // mute toggle
+    const muteBtn=document.createElement('button');
+    muteBtn.textContent='🔊 Music on';
+    muteBtn.style.cssText='position:fixed;bottom:1.2rem;left:1.2rem;padding:.5rem 1rem;border-radius:999px;border:1px solid var(--border);background:rgba(12,16,31,.85);color:var(--cream);font-size:.85rem;cursor:pointer;z-index:10';
+    muteBtn.onclick=()=>{bg.muted=!bg.muted; vo.muted=bg.muted; muteBtn.textContent=bg.muted?'🔇 Muted':'🔊 Music on';};
+    document.body.appendChild(muteBtn);
     function showPlayHint(){
       if(document.getElementById('playhint')) return;
       const b=document.createElement('button');
