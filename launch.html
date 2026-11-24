@@ -50,6 +50,7 @@
     <div class="url">kissmeet.pages.dev</div>
     <a class="cta" href="/chat">Jump in</a>
   </div>
+  <audio id="vo" src="/voiceover.mp3" autoplay preload="auto"></audio>
   <button class="replay" id="replay">Replay</button>
   <script>
     // scatter stars
@@ -70,7 +71,18 @@
       stage.parentNode.replaceChild(clone,stage);
       // re-bind reference not needed
     }
-    document.getElementById('replay').addEventListener('click',()=>location.reload());
+    const vo=document.getElementById('vo');
+    const tryPlay=()=>{vo.play().catch(()=>{showPlayHint();});};
+    function showPlayHint(){
+      if(document.getElementById('playhint')) return;
+      const b=document.createElement('button');
+      b.id='playhint'; b.textContent='Tap to play sound';
+      b.style.cssText='position:fixed;bottom:1.2rem;left:1.2rem;padding:.5rem 1rem;border-radius:999px;border:1px solid var(--border);background:rgba(12,16,31,.85);color:var(--amber);font-size:.85rem;cursor:pointer;z-index:10';
+      b.onclick=()=>{vo.play();b.remove();};
+      document.body.appendChild(b);
+    }
+    tryPlay();
+    document.getElementById('replay').addEventListener('click',()=>{location.reload();});
   </script>
 </body>
 </html>
