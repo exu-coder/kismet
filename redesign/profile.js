@@ -57,7 +57,42 @@
     const overlay = document.getElementById('photo-overlay');
     if (src) { photoImg.src = src; photoImg.style.display = 'block'; photoImg.style.borderRadius = '50%'; photoPlaceholder.style.display = 'none'; if (overlay) overlay.style.display = 'none'; }
     else { photoImg.style.display = 'none'; photoPlaceholder.style.display = 'block'; if (overlay) overlay.style.display = 'block'; }
+    updatePreview();
   };
+
+  const updatePreview = () => {
+    const namePreview = document.getElementById('profile-name-preview');
+    if (namePreview) namePreview.textContent = profile.name || 'Anonymous';
+    const checks = [profile.name && profile.name !== 'Anonymous', profile.country, profile.photo].filter(Boolean).length;
+    const pct = Math.round((checks / 3) * 100);
+    const label = document.getElementById('completeness-label');
+    const bar = document.getElementById('completeness-bar');
+    const meter = document.querySelector('.meter');
+    if (label) label.textContent = pct + '%';
+    if (bar) bar.style.width = pct + '%';
+    if (meter) meter.setAttribute('aria-valuenow', String(pct));
+  };
+
+  ['name-input', 'country-select'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', () => {
+      profile.name = document.getElementById('name-input').value.trim() || 'Anonymous';
+      profile.country = document.getElementById('country-select').value;
+      updatePreview();
+    });
+  });
+
+  document.getElementById('copy-code')?.addEventListener('click', async () => {
+    const code = document.getElementById('code-display')?.textContent?.trim();
+    if (!code || code === '…') return;
+    try {
+      await navigator.clipboard.writeText(code);
+      showToast('Friend code copied!');
+    } catch (error) {
+      showToast('Could not copy automatically. Your code is ' + code);
+    }
+  });
+
   showPhoto(profile.photo);
 
   const handlePhoto = async (file) => {
@@ -122,6 +157,7 @@
     }
     document.getElementById('code-display').textContent = profile.code || '…';
     showPhoto(profile.photo);
+    updatePreview();
   };
 
   const hydrateProfile = async () => {
@@ -153,11 +189,20 @@
     }
   };
 
-  document.getElementById('save-btn').addEventListener('click', async () => {
+  const saveBtn = document.getElementById('save-btn');
+  const setSaving = (busy) => {
+    if (!saveBtn) return;
+    saveBtn.disabled = busy;
+    const label = saveBtn.querySelector('span');
+    if (label) label.textContent = busy ? 'Saving…' : 'Save profile';
+  };
+
+  saveBtn?.addEventListener('click', async () => {
     profile.name = document.getElementById('name-input').value.trim() || 'Anonymous';
     profile.country = document.getElementById('country-select').value;
     if (!hasRemoteProfile) ensureCode();
     if (!save('kismet.profile', profile)) return;
+    setSaving(true);
     try {
       await window.kismetReady;
       await hydratePromise;
@@ -177,11 +222,14 @@
         localStorage.setItem('kismet.mycode', profile.code);
         document.getElementById('code-display').textContent = profile.code;
       }
+      updatePreview();
       await refreshStats();
       showToast('Profile saved successfully!');
     } catch (error) {
       console.error('Profile sync failed:', error);
       showToast('Saved on this device, but account sync failed.');
+    } finally {
+      setSaving(false);
     }
   });
 
