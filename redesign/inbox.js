@@ -41,11 +41,6 @@
     timeLabel: () => ''
   };
 
-  // Local visual test only: http://localhost:8080/inbox/?demo=1
-  // Never active on a deployed hostname.
-  const demo = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') &&
-    new URLSearchParams(location.search).has('demo');
-
   let sb = null;
   let userId = null;
   let friends = [];
@@ -55,39 +50,6 @@
   let activeMessages = [];
   let profileFriend = null;
   let loadingMessages = false;
-
-  const DEMO_ME = '11111111-1111-4111-8111-111111111111';
-  const DEMO_PEERS = [
-    {
-      id: '22222222-2222-4222-8222-222222222222',
-      name: 'Amara', code: 'KS-7A3F92', country: 'Nigeria', photo: '',
-      preview: 'That match was fun. Want to chat again?',
-      messages: [
-        { from: '22222222-2222-4222-8222-222222222222', text: 'Hey! That was a great match.', at: '2026-11-24T10:38:00Z' },
-        { from: DEMO_ME, text: 'It really was. Your laugh made me miss the timer.', at: '2026-11-24T10:39:00Z' },
-        { from: '22222222-2222-4222-8222-222222222222', text: 'That match was fun. Want to chat again?', at: '2026-11-24T10:42:00Z' }
-      ]
-    },
-    {
-      id: '33333333-3333-4333-8333-333333333343',
-      name: 'Noah', code: 'KS-2C81B4', country: 'Canada', photo: '',
-      preview: 'Send me the link when you have it.',
-      messages: [
-        { from: DEMO_ME, text: 'I found that page we were talking about.', at: '2026-11-23T18:10:00Z' },
-        { from: '33333333-3333-4333-8333-333333333343', text: 'Send me the link when you have it.', at: '2026-11-23T18:12:00Z' }
-      ]
-    },
-    {
-      id: '44444444-4444-4444-8444-444444444444',
-      name: 'Demo Chat', code: 'KS-DEMO01', country: 'Demo', photo: '',
-      preview: 'Try emoji or start a private call.',
-      messages: [
-        { from: '44444444-4444-4444-8444-444444444444', text: 'Welcome to the Kismet demo chat 😊', at: '2026-11-24T11:00:00Z' },
-        { from: DEMO_ME, text: 'Tap the emoji button to add a reaction.', at: '2026-11-24T11:01:00Z' },
-        { from: '44444444-4444-4444-8444-444444444444', text: 'You can also start a private audio or video call from the header or profile.', at: '2026-11-24T11:02:00Z' }
-      ]
-    }
-  ];
 
   const isSafeUserId = value => typeof value === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -108,36 +70,6 @@
       photo_url: identity.safePhotoUrl(live.photo_url),
       country: live.country || ''
     };
-  };
-
-  const demoMessagesFor = friendId => {
-    const peer = DEMO_PEERS.find(item => item.id === friendId);
-    if (!peer) return [];
-    return peer.messages.map(message => ({
-      from_user_id: message.from,
-      to_user_id: message.from === DEMO_ME ? friendId : DEMO_ME,
-      content: message.text,
-      created_at: message.at
-    }));
-  };
-
-  const seedDemo = () => {
-    userId = DEMO_ME;
-    friends = DEMO_PEERS.map(peer => ({
-      friend_id: peer.id,
-      friend_name: peer.name,
-      friend_code: peer.code,
-      created_at: peer.messages[peer.messages.length - 1].at
-    }));
-    profiles = new Map(DEMO_PEERS.map(peer => [peer.id, {
-      user_id: peer.id, name: peer.name, friend_code: peer.code,
-      photo_url: peer.photo, country: peer.country
-    }]));
-    previews = new Map(DEMO_PEERS.map(peer => [peer.id, {
-      content: peer.preview,
-      created_at: peer.messages[peer.messages.length - 1].at,
-      mine: false
-    }]));
   };
 
   const loadProfiles = async () => {
@@ -193,7 +125,7 @@
   };
 
   const loadMessages = async () => {
-    if (!active || !friendUserId(active) || loadingMessages || demo) return;
+    if (!active || !friendUserId(active) || loadingMessages) return;
     loadingMessages = true;
     const friendId = friendUserId(active);
     const { data, error } = await sb.from('messages').select('*')
@@ -404,7 +336,7 @@
   const showChat = friend => {
     if (!friendUserId(friend)) return;
     active = friend;
-    activeMessages = demo ? demoMessagesFor(friendUserId(friend)) : [];
+    activeMessages = [];
     list.hidden = true;
     chatView.hidden = false;
     renderHeader();
@@ -452,17 +384,6 @@
       return;
     }
     sendBtn.disabled = true;
-    if (demo) {
-      const at = new Date().toISOString();
-      activeMessages.push({ from_user_id: userId, to_user_id: recipientId, content, created_at: at });
-      previews.set(recipientId, { content, created_at: at, mine: true });
-      input.value = '';
-      renderMessages();
-      renderList();
-      sendBtn.disabled = false;
-      input.focus();
-      return;
-    }
     const { error } = await sb.from('messages').insert({
       from_user_id: userId, to_user_id: recipientId, content
     });
@@ -511,11 +432,6 @@
   jumpBtn.addEventListener('click', () => { messagesEl.scrollTop = messagesEl.scrollHeight; jumpBtn.hidden = true; });
 
   renderHeader();
-  if (demo) {
-    seedDemo();
-    renderList();
-    return;
-  }
 
   try {
     sb = await window.kismetReady;
